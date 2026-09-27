@@ -1,6 +1,6 @@
 import "server-only";
 import { SignJWT, importPKCS8 } from "jose";
-import { createPrivateKey } from "node:crypto";
+import { createPrivateKey, type KeyObject } from "node:crypto";
 
 const API = process.env.EB_API_URL ?? "https://api.enablebanking.com";
 
@@ -45,13 +45,39 @@ async function privateKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey;
   const raw = process.env.EB_PRIVATE_KEY;
   if (!raw) throw new Error("EB_PRIVATE_KEY non configurata");
-  // Accetta PEM con newline reali, con "\n" letterali, o in base64 (comodo per le env di Vercel)
-  let pem = raw.includes("\\n") ? raw.replace(/\\n/g, "\n") : raw;
-  if (!pem.includes("-----BEGIN")) pem = Buffer.from(pem, "base64").toString("utf8");
   // Normalizza PKCS#1 ("BEGIN RSA PRIVATE KEY") in PKCS#8
-  const pkcs8 = createPrivateKey(pem).export({ type: "pkcs8", format: "pem" }).toString();
+  const pkcs8 = parsePrivateKey(raw).export({ type: "pkcs8", format: "pem" }).toString();
   cachedKey = await importPKCS8(pkcs8, "RS256");
   return cachedKey;
+}
+
+/**
+ * Accetta la chiave in qualsiasi forma finisca in una env var: PEM con o senza "a capo"
+ * (anche sostituiti da spazi o "\n" letterali), tra virgolette, PEM codificato in base64,
+ * o solo il corpo base64 senza intestazioni.
+ */
+export function parsePrivateKey(raw: string): KeyObject {
+  let text = raw.trim().replace(/^["']|["']$/g, "").replace(/\\n/g, "\n").replace(/\\r/g, "");
+  if (!text.includes("-----BEGIN")) {
+    const decoded = Buffer.from(text.replace(/\s+/g, ""), "base64").toString("utf8");
+    if (decoded.includes("-----BEGIN")) text = decoded;
+  }
+  const m = text.match(/-----BEGIN ([A-Z ]+)-----([\s\S]*?)-----END \1-----/);
+  const label = m?.[1] ?? "PRIVATE KEY";
+  const body = (m ? m[2] : text).replace(/[^A-Za-z0-9+/=]/g, "");
+  if (!body) throw new Error("EB_PRIVATE_KEY vuota o non valida");
+  const pem = `-----BEGIN ${label}-----\n${body.match(/.{1,64}/g)!.join("\n")}\n-----END ${label}-----\n`;
+  try {
+    return createPrivateKey(pem);
+  } catch {
+    const der = Buffer.from(body, "base64");
+    for (const type of ["pkcs8", "pkcs1"] as const) {
+      try {
+        return createPrivateKey({ key: der, format: "der", type });
+      } catch {}
+    }
+    throw new Error("EB_PRIVATE_KEY non è una chiave privata RSA valida: incolla il contenuto completo del file .pem");
+  }
 }
 
 async function apiJwt(): Promise<string> {
