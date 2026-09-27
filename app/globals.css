@@ -110,3 +110,13 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 
 .filters { display: flex; gap: 8px; }
 .filters select { width: 110px; flex: none; }
+
+.form-grid { display: grid; gap: 12px; }
+.form-grid label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.form-grid input {
+  width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 15px;
+}
+.form-grid .btn { justify-content: center; padding: 10px; }
+.total .split { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; font-size: 14px; }
+.total .split span { color: var(--muted); }

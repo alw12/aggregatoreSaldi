@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { loadDashboard, psuHeadersFrom, type BankView } from "@/lib/data";
 import { hasStore } from "@/lib/store";
+import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,7 @@ function TopBar() {
       <div className="actions">
         <form method="post" action="/api/refresh"><button className="btn" type="submit">↻ Aggiorna</button></form>
         <Link className="btn" href="/connect">+ Banca</Link>
+        <Link className="btn" href="/portfolio">Portafoglio</Link>
         <form method="post" action="/api/logout"><button className="btn" type="submit">Esci</button></form>
       </div>
     </header>
@@ -56,8 +58,16 @@ export default async function Home() {
   }
 
   let banks: BankView[];
+  let portfolio: { holdings: HoldingView[]; error: string | null };
   try {
-    banks = await loadDashboard(psuHeadersFrom(await headers()));
+    const psu = psuHeadersFrom(await headers());
+    [banks, portfolio] = await Promise.all([
+      loadDashboard(psu),
+      loadPortfolio().then(
+        (holdings) => ({ holdings, error: null }),
+        (e: unknown) => ({ holdings: [] as HoldingView[], error: e instanceof Error ? e.message : String(e) }),
+      ),
+    ]);
   } catch (e) {
     return (
       <main className="container">
@@ -73,13 +83,17 @@ export default async function Home() {
   const totals = totalsByCurrency(banks);
   const accountsCount = banks.reduce((n, b) => n + b.accounts.length, 0);
   const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
+  const { holdings, error: portfolioError } = portfolio;
+  const invested = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
+  const cashEur = totals.find(([c]) => c === "EUR")?.[1] ?? 0;
+  const otherCurrencies = totals.filter(([c]) => c !== "EUR");
   const oldest = banks.map((b) => b.fetchedAt).filter(Boolean).sort()[0] ?? null;
 
   return (
     <main className="container">
       <TopBar />
 
-      {banks.length === 0 ? (
+      {banks.length === 0 && holdings.length === 0 ? (
         <div className="card empty">
           <p>Nessuna banca collegata.</p>
           <Link className="btn btn-primary" href="/connect">Collega la prima banca</Link>
@@ -88,13 +102,14 @@ export default async function Home() {
         <>
           <section className="card total">
             <div className="label">Totale</div>
-            {totals.length === 0 ? (
-              <div className="value">—</div>
-            ) : (
-              totals.map(([cur, amt]) => (
-                <div key={cur} className="value">{fmt(amt, cur)}</div>
-              ))
-            )}
+            <div className="value">{fmt(cashEur + invested, "EUR")}</div>
+            {otherCurrencies.map(([cur, amt]) => (
+              <div key={cur} className="value">{fmt(amt, cur)}</div>
+            ))}
+            <div className="split">
+              <div><span>Liquidità </span>{fmt(cashEur, "EUR")}</div>
+              <div><span>Investimenti </span>{fmt(invested, "EUR")}</div>
+            </div>
             <div className="sub">
               {accountsCount} conti su {banks.length} {banks.length === 1 ? "banca" : "banche"} · aggiornato {when(oldest)}
               {failed > 0 && <> · <span style={{ color: "var(--negative)" }}>{failed} non {failed === 1 ? "letto" : "letti"}, esclus{failed === 1 ? "o" : "i"} dal totale</span></>}
@@ -105,6 +120,38 @@ export default async function Home() {
             <div className="notice">
               Uno o più consensi scadono a breve: ricollega la banca da “+ Banca” per non perdere l’accesso.
             </div>
+          )}
+
+          {(holdings.length > 0 || portfolioError) && (
+            <section className="card bank">
+              <div className="bank-head">
+                <div>
+                  <div className="bank-name">Portafoglio Trade Republic</div>
+                  <div className="bank-meta">Prezzi di mercato, aggiornati ogni 15 minuti</div>
+                </div>
+                <div className="bank-sum">{fmt(invested, "EUR")}</div>
+              </div>
+              {portfolioError && <div className="err" style={{ textAlign: "left" }}>{portfolioError}</div>}
+              {holdings.map((h) => (
+                <div key={h.id} className="account">
+                  <div>
+                    <div className="account-label">{h.name}</div>
+                    <div className="account-iban">
+                      {new Intl.NumberFormat("it-IT", { maximumFractionDigits: 4 }).format(h.qty)} quote
+                      {h.price !== null && <> × {fmt(h.price, "EUR")}{h.priceSource === "manuale" ? " (manuale)" : ""}</>}
+                    </div>
+                  </div>
+                  {h.value !== null ? (
+                    <div className="amount">{fmt(h.value, "EUR")}</div>
+                  ) : (
+                    <div className="err">{h.error}</div>
+                  )}
+                </div>
+              ))}
+              <div style={{ textAlign: "right", marginTop: 8 }}>
+                <Link className="btn btn-ghost" href="/portfolio">Modifica</Link>
+              </div>
+            </section>
           )}
 
           {banks.map((b) => {

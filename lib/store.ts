@@ -20,7 +20,7 @@ export type StoredSession = {
 const KEY = "saldi:sessions";
 export const STATE_COOKIE = "saldi_eb_state";
 
-function redis(): Redis | null {
+export function redis(): Redis | null {
   // Priorità: variabili create dall'integrazione Vercel con prefisso SALDI, poi quelle standard
   const url =
     process.env.SALDI_KV_REST_API_URL ?? process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
