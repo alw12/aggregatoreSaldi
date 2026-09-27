@@ -55,7 +55,21 @@ export default async function Home() {
     );
   }
 
-  const banks = await loadDashboard(psuHeadersFrom(await headers()));
+  let banks: BankView[];
+  try {
+    banks = await loadDashboard(psuHeadersFrom(await headers()));
+  } catch (e) {
+    return (
+      <main className="container">
+        <TopBar />
+        <div className="notice error">
+          Il database non risponde: controlla le variabili Upstash del progetto su Vercel.
+          <br />
+          <small>{e instanceof Error ? e.message : String(e)}</small>
+        </div>
+      </main>
+    );
+  }
   const totals = totalsByCurrency(banks);
   const accountsCount = banks.reduce((n, b) => n + b.accounts.length, 0);
   const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
