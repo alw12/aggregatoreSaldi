@@ -3,7 +3,11 @@ import { startAuth } from "@/lib/eb";
 import { STATE_COOKIE } from "@/lib/store";
 
 function redirectUrl(request: NextRequest): string {
-  return process.env.EB_REDIRECT_URL ?? new URL("/api/eb/callback", request.url).toString();
+  if (process.env.EB_REDIRECT_URL) return process.env.EB_REDIRECT_URL;
+  // Su Vercel usa sempre il dominio di produzione: deve coincidere con quello registrato su Enable Banking
+  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (prod) return `https://${prod}/api/eb/callback`;
+  return new URL("/api/eb/callback", request.url).toString();
 }
 
 export async function POST(request: NextRequest) {
