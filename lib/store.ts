@@ -21,8 +21,11 @@ const KEY = "saldi:sessions";
 export const STATE_COOKIE = "saldi_eb_state";
 
 function redis(): Redis | null {
-  const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Priorità: variabili create dall'integrazione Vercel con prefisso SALDI, poi quelle standard
+  const url =
+    process.env.SALDI_KV_REST_API_URL ?? process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+  const token =
+    process.env.SALDI_KV_REST_API_TOKEN ?? process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
   return url && token ? new Redis({ url, token }) : null;
 }
 
