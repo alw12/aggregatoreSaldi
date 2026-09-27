@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Saldi
 
-## Getting Started
+Dashboard personale con i saldi di tutti i conti bancari, via open banking PSD2 ([Enable Banking](https://enablebanking.com), modalità *restricted* gratuita).
+Next.js 16 · deploy su Vercel · protetta da password · storage su Upstash Redis.
 
-First, run the development server:
+## Come funziona
 
+- **Login**: password unica (`APP_PASSWORD`), cookie `httpOnly` firmato (HS256, 7 giorni). Il `proxy.ts` blocca ogni pagina e API senza cookie valido.
+- **Collegamento banca**: `/connect` → Enable Banking → SCA sulla tua banca → `/api/eb/callback` salva la sessione (id, conti, scadenza consenso) su Redis.
+- **Saldi**: la dashboard legge `/accounts/{uid}/balances` per ogni conto, con header PSU (utente presente, quindi niente limite di 4 letture/giorno), e tiene i saldi in cache per 30 minuti. "Aggiorna" svuota la cache.
+- **Consenso**: dura al massimo quanto consente la banca (di solito 180 giorni). Da 14 giorni prima della scadenza compare un avviso; per rinnovare basta ricollegare la banca.
+
+## Setup
+
+### 1. Enable Banking
+1. Registrati su https://enablebanking.com/cp e crea un'applicazione **Production**.
+   - Chiave: *Generate in the browser* → scarica il `.pem`.
+   - Redirect URL: `https://<tuo-progetto>.vercel.app/api/eb/callback` (e `http://localhost:3000/api/eb/callback` se vuoi testare in locale, se accettato).
+   - Privacy/Terms URL: in modalità restricted non vengono validati (va bene una pagina qualsiasi, es. un gist).
+2. **Activate by linking accounts**: collega nel Control Panel i tuoi conti (Poste, BBVA, Revolut…). In modalità restricted l'API restituisce **solo** i conti collegati qui.
+3. Annota l'**Application ID**.
+
+### 2. Vercel
+1. Importa il repo su Vercel.
+2. Storage → Marketplace → **Upstash Redis** (piano free) → collegalo al progetto (imposta `KV_REST_API_URL` / `KV_REST_API_TOKEN`).
+3. Environment Variables:
+   - `APP_PASSWORD`: la tua password
+   - `AUTH_SECRET`: `openssl rand -base64 48`
+   - `EB_APP_ID`: Application ID
+   - `EB_PRIVATE_KEY`: `base64 -w0 chiave.pem` (Linux) / `base64 -i chiave.pem` (macOS)
+4. Deploy, apri il sito, fai login, **+ Banca** e collega ogni banca.
+
+### Locale
 ```bash
+cp .env.example .env.local   # compila i valori
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Note di sicurezza
+- La chiave `.pem` e le env non vanno mai committate (`.gitignore` copre `.env*` e `*.pem`).
+- L'app è in sola lettura: niente pagamenti.
+- Pagine marcate `noindex`. Login rallentato di 1,5 s sui tentativi errati.
+- Per revocare l'accesso: **Scollega** nella dashboard (chiude anche il consenso lato banca).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Limiti
+- Trade Republic / Scalable: via PSD2 si vede solo la liquidità del conto, non il valore del portafoglio.
+- Alcune banche italiane richiedono di rifare la SCA periodicamente anche prima dei 180 giorni.
