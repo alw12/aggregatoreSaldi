@@ -3,11 +3,8 @@ import { startAuth } from "@/lib/eb";
 import { STATE_COOKIE } from "@/lib/store";
 
 function redirectUrl(request: NextRequest): string {
-  if (process.env.EB_REDIRECT_URL) return process.env.EB_REDIRECT_URL;
-  // Su Vercel usa sempre il dominio di produzione: deve coincidere con quello registrato su Enable Banking
-  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (prod) return `https://${prod}/api/eb/callback`;
-  return new URL("/api/eb/callback", request.url).toString();
+  // Deve coincidere esattamente con uno dei Redirect URL registrati su Enable Banking
+  return process.env.EB_REDIRECT_URL ?? new URL("/api/eb/callback", request.url).toString();
 }
 
 export async function POST(request: NextRequest) {
@@ -39,7 +36,10 @@ export async function POST(request: NextRequest) {
     });
     return res;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    let msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("REDIRECT_URI_NOT_ALLOWED")) {
+      msg = `Redirect URL non registrato su Enable Banking: ${redirectUrl(request)}`;
+    }
     const url = new URL("/connect", request.url);
     url.searchParams.set("error", msg.slice(0, 300));
     return NextResponse.redirect(url, 303);
