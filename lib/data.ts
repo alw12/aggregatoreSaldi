@@ -1,6 +1,7 @@
 import "server-only";
 import { EbError, getBalances, pickBalance, type PsuHeaders } from "./eb";
 import { getCachedBalances, listSessions, setCachedBalances, type StoredSession } from "./store";
+import { listOverrides, type BalanceOverride } from "./manual";
 
 export type AccountView = {
   uid: string;
@@ -10,6 +11,7 @@ export type AccountView = {
   amount: number | null;
   balanceType?: string;
   error?: string;
+  manualAt?: string; // saldo inserito a mano che sostituisce quello della banca
 };
 
 export type BankView = {
@@ -85,9 +87,15 @@ async function loadBank(s: StoredSession, psu: PsuHeaders): Promise<BankView> {
   return { ...base, fetchedAt, accounts };
 }
 
+function applyOverride(a: AccountView, o: BalanceOverride | undefined): AccountView {
+  return o ? { ...a, amount: o.amount, error: undefined, manualAt: o.updatedAt } : a;
+}
+
 export async function loadDashboard(psu: PsuHeaders): Promise<BankView[]> {
-  const sessions = await listSessions();
-  return Promise.all(sessions.map((s) => loadBank(s, psu)));
+  const [sessions, overrides] = await Promise.all([listSessions(), listOverrides()]);
+  const banks = await Promise.all(sessions.map((s) => loadBank(s, psu)));
+  // Gli override si applicano dopo la cache, così modificarli ha effetto subito
+  return banks.map((b) => ({ ...b, accounts: b.accounts.map((a) => applyOverride(a, overrides[a.uid])) }));
 }
 
 /** Header PSU: segnalano alla banca che l'utente è presente, evitando il limite di 4 letture/giorno. */

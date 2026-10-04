@@ -120,3 +120,14 @@ input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1p
 .form-grid .btn { justify-content: center; padding: 10px; }
 .total .split { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 10px; font-size: 14px; }
 .total .split span { color: var(--muted); }
+
+.quick { margin-top: 2px; text-align: right; }
+.quick summary { cursor: pointer; color: var(--muted); font-size: 12px; list-style: none; }
+.quick summary::-webkit-details-marker { display: none; }
+.quick summary:hover { color: var(--text); }
+.quick form { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.quick input {
+  width: 120px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px; text-align: right;
+}
+.quick .btn { padding: 6px 10px; font-size: 13px; }

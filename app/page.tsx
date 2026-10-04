@@ -5,6 +5,8 @@ import { hasStore } from "@/lib/store";
 import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
 import { loadBonds, type BondView } from "@/lib/bonds";
 import { loadCards, type CreditCardView } from "@/lib/cards";
+import { listManualAccounts, type ManualAccount } from "@/lib/manual";
+import { QuickEdit } from "./quick-edit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +25,12 @@ function when(iso: string | null) {
   }).format(new Date(iso));
 }
 
-function totalsByCurrency(banks: BankView[]) {
+function totalsByCurrency(banks: BankView[], manual: ManualAccount[]) {
   const totals = new Map<string, number>();
   for (const b of banks)
     for (const a of b.accounts)
       if (a.amount !== null) totals.set(a.currency, (totals.get(a.currency) ?? 0) + a.amount);
+  for (const a of manual) totals.set(a.currency, (totals.get(a.currency) ?? 0) + a.amount);
   return [...totals.entries()].sort(([a], [b]) => (a === "EUR" ? -1 : b === "EUR" ? 1 : a.localeCompare(b)));
 }
 
@@ -41,13 +44,16 @@ function TopBar() {
         <Link className="btn" href="/portfolio">Portafoglio</Link>
         <Link className="btn" href="/buoni">Buoni</Link>
         <Link className="btn" href="/carte">Carte</Link>
+        <Link className="btn" href="/conti">Conti</Link>
         <form method="post" action="/api/logout"><button className="btn" type="submit">Esci</button></form>
       </div>
     </header>
   );
 }
 
-export default async function Home() {
+export default async function Home({ searchParams }: PageProps<"/">) {
+  const sp = await searchParams;
+  const actionError = typeof sp.error === "string" ? sp.error : null;
   if (!hasStore()) {
     return (
       <main className="container">
@@ -65,9 +71,10 @@ export default async function Home() {
   let portfolio: { holdings: HoldingView[]; error: string | null };
   let bonds: BondView[];
   let cards: CreditCardView[];
+  let manualAccounts: ManualAccount[];
   try {
     const psu = psuHeadersFrom(await headers());
-    [banks, portfolio, bonds, cards] = await Promise.all([
+    [banks, portfolio, bonds, cards, manualAccounts] = await Promise.all([
       loadDashboard(psu),
       loadPortfolio().then(
         (holdings) => ({ holdings, error: null }),
@@ -75,6 +82,7 @@ export default async function Home() {
       ),
       loadBonds(),
       loadCards(),
+      listManualAccounts(),
     ]);
   } catch (e) {
     return (
@@ -88,8 +96,8 @@ export default async function Home() {
       </main>
     );
   }
-  const totals = totalsByCurrency(banks);
-  const accountsCount = banks.reduce((n, b) => n + b.accounts.length, 0);
+  const totals = totalsByCurrency(banks, manualAccounts);
+  const accountsCount = banks.reduce((n, b) => n + b.accounts.length, 0) + manualAccounts.length;
   const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
   const { holdings, error: portfolioError } = portfolio;
   const holdingsValue = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
@@ -104,7 +112,9 @@ export default async function Home() {
     <main className="container">
       <TopBar />
 
-      {banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 ? (
+      {actionError && <div className="notice error">{actionError}</div>}
+
+      {banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 && manualAccounts.length === 0 ? (
         <div className="card empty">
           <p>Nessuna banca collegata.</p>
           <Link className="btn btn-primary" href="/connect">Collega la prima banca</Link>
@@ -123,7 +133,7 @@ export default async function Home() {
               {cards.length > 0 && <div><span>Carte </span>{fmt(-cardsDebt, "EUR")}</div>}
             </div>
             <div className="sub">
-              {accountsCount} conti su {banks.length} {banks.length === 1 ? "banca" : "banche"} · aggiornato {when(oldest)}
+              {accountsCount} conti su {banks.length} {banks.length === 1 ? "banca" : "banche"}{manualAccounts.length > 0 && " + manuali"} · aggiornato {when(oldest)}
               {failed > 0 && <> · <span style={{ color: "var(--negative)" }}>{failed} non {failed === 1 ? "letto" : "letti"}, esclus{failed === 1 ? "o" : "i"} dal totale</span></>}
             </div>
           </section>
@@ -214,11 +224,41 @@ export default async function Home() {
                       {c.nextCharge && <>{c.last4 ? " · " : ""}addebito il {new Date(`${c.nextCharge}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" })}</>}
                     </div>
                   </div>
-                  <div className={`amount${c.balance > 0 ? " neg" : ""}`}>{fmt(-c.balance, "EUR")}</div>
+                  <div>
+                    <div className={`amount${c.balance > 0 ? " neg" : ""}`} style={{ textAlign: "right" }}>{fmt(-c.balance, "EUR")}</div>
+                    <QuickEdit kind="card" id={c.id} value={c.balance} placeholder="speso, es. 432,10"
+                      extra={c.balance > 0 ? { action: "zero", label: "Azzera" } : undefined} />
+                  </div>
                 </div>
               ))}
               <div style={{ textAlign: "right", marginTop: 8 }}>
                 <Link className="btn btn-ghost" href="/carte">Modifica</Link>
+              </div>
+            </section>
+          )}
+
+          {manualAccounts.length > 0 && (
+            <section className="card bank">
+              <div className="bank-head">
+                <div>
+                  <div className="bank-name">Conti manuali</div>
+                  <div className="bank-meta">Saldi inseriti a mano</div>
+                </div>
+              </div>
+              {manualAccounts.map((a) => (
+                <div key={a.id} className="account">
+                  <div>
+                    <div className="account-label">{a.name}</div>
+                    <div className="account-iban">aggiornato {when(a.updatedAt)}</div>
+                  </div>
+                  <div>
+                    <div className={`amount${a.amount < 0 ? " neg" : ""}`} style={{ textAlign: "right" }}>{fmt(a.amount, a.currency)}</div>
+                    <QuickEdit kind="manual" id={a.id} value={a.amount} />
+                  </div>
+                </div>
+              ))}
+              <div style={{ textAlign: "right", marginTop: 8 }}>
+                <Link className="btn btn-ghost" href="/conti">Modifica</Link>
               </div>
             </section>
           )}
@@ -247,13 +287,22 @@ export default async function Home() {
                   <div key={a.uid} className="account">
                     <div>
                       <div className="account-label">{a.label}</div>
-                      {a.iban && <div className="account-iban">{maskIban(a.iban)}</div>}
+                      {(a.iban || a.manualAt) && (
+                        <div className="account-iban">
+                          {maskIban(a.iban)}
+                          {a.manualAt && <>{a.iban ? " · " : ""}manuale {when(a.manualAt)}</>}
+                        </div>
+                      )}
                     </div>
-                    {a.amount !== null ? (
-                      <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
-                    ) : (
-                      <div className="err">{a.error}</div>
-                    )}
+                    <div>
+                      {a.amount !== null ? (
+                        <div className={`amount${a.amount < 0 ? " neg" : ""}`} style={{ textAlign: "right" }}>{fmt(a.amount, a.currency)}</div>
+                      ) : (
+                        <div className="err">{a.error}</div>
+                      )}
+                      <QuickEdit kind="account" id={a.uid} value={a.amount}
+                        extra={a.manualAt ? { action: "clear", label: "Automatico" } : undefined} />
+                    </div>
                   </div>
                 ))}
 
