@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCard, saveCard } from "@/lib/cards";
+import { getBond, saveBond } from "@/lib/bonds";
 import { clearOverride, getManualAccount, saveManualAccount, setOverride } from "@/lib/manual";
 import { listSessions } from "@/lib/store";
 import { parseNumber } from "@/lib/parse";
@@ -34,6 +35,13 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (kind === "bond" && action === "estimate") {
+    const bond = await getBond(id);
+    if (!bond) return home(request, "Buono non trovato");
+    await saveBond({ ...bond, manualValue: null, updatedAt: new Date().toISOString() });
+    return home(request);
+  }
+
   if (kind === "card" && action === "zero") {
     const card = await getCard(id);
     if (!card) return home(request, "Carta non trovata");
@@ -59,6 +67,13 @@ export async function POST(request: NextRequest) {
       if (!card) return home(request, "Carta non trovata");
       if (amount < 0) return home(request, "Lo speso della carta non può essere negativo");
       await saveCard({ ...card, balance: amount, updatedAt: new Date().toISOString() });
+      break;
+    }
+    case "bond": {
+      const bond = await getBond(id);
+      if (!bond) return home(request, "Buono non trovato");
+      if (amount < 0) return home(request, "Il valore del buono non può essere negativo");
+      await saveBond({ ...bond, manualValue: amount, updatedAt: new Date().toISOString() });
       break;
     }
     default:

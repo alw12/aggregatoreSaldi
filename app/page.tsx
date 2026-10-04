@@ -312,7 +312,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <div className="bank-head">
                 <div>
                   <div className="bank-name">Buoni fruttiferi postali</div>
-                  <div className="bank-meta">Valori netti</div>
+                  <div className="bank-meta">Valori di rimborso netti</div>
                 </div>
                 <div className="bank-sum">{fmt(bondsValue, "EUR")}</div>
               </div>
@@ -325,10 +325,22 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                     </div>
                     <div className="account-iban">
                       {fmt(b.capital, "EUR")} dal {new Date(`${b.subscribedAt}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" })}
-                      {b.valueSource === "stima" ? ", valore stimato" : b.valueSource === "nominale" ? ", valore nominale" : ""}
+                      {b.valueSource === "manuale" && <>, valore del {when(b.updatedAt)}</>}
                     </div>
+                    {b.valueSource !== "manuale" && (
+                      <div className="account-iban estimate">
+                        {b.valueSource === "stima" ? "Stima dal tasso, può essere molto diversa" : "Valore nominale, senza interessi"}: inserisci il valore di rimborso netto dall’app BancoPosta.
+                      </div>
+                    )}
                   </div>
-                  <div className="amount">{fmt(b.value, "EUR")}</div>
+                  <div>
+                    <div className="amount" style={{ textAlign: "right" }}>
+                      {b.valueSource === "stima" && "≈ "}{fmt(b.value, "EUR")}
+                    </div>
+                    <QuickEdit kind="bond" id={b.id} value={b.valueSource === "manuale" ? b.value : null}
+                      summary="Inserisci valore" placeholder="es. 2.064,00"
+                      extra={b.valueSource === "manuale" && b.grossRate !== null ? { action: "estimate", label: "Usa stima" } : undefined} />
+                  </div>
                 </div>
               ))}
               <div className="group-foot">

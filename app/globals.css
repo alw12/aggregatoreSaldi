@@ -231,7 +231,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .form-hint { color: var(--muted); font-size: 13px; margin: -6px 0 2px; }
 
 .quick { margin-top: 2px; text-align: right; }
-.quick summary { cursor: pointer; color: var(--muted); font-size: 13px; list-style: none; }
+.quick summary { cursor: pointer; color: var(--muted); font-size: 13px; list-style: none; white-space: nowrap; }
 .quick summary::-webkit-details-marker { display: none; }
 .quick summary:hover { color: var(--accent); }
 .quick form { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: wrap; margin-top: 6px; }
@@ -285,3 +285,4 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .split-groups > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-top: 1px solid var(--faint); padding-top: 3px; }
 .split-groups > span:last-child { text-align: right; }
 .split-sub { margin-top: 18px; }
+.account-iban.estimate { color: var(--warn-text); }

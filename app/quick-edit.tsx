@@ -8,17 +8,19 @@ export function QuickEdit({
   value,
   placeholder = "es. 1.234,56",
   extra,
+  summary = "Modifica saldo",
 }: {
-  kind: "account" | "manual" | "card";
+  kind: "account" | "manual" | "card" | "bond";
   id: string;
   value: number | null;
   placeholder?: string;
   /** Pulsante secondario (es. "Azzera" o "Automatico"), inviato come action. */
   extra?: { action: string; label: string };
+  summary?: string;
 }) {
   return (
     <details className="quick">
-      <summary>Modifica saldo</summary>
+      <summary>{summary}</summary>
       <form method="post" action="/api/balances">
         <input type="hidden" name="kind" value={kind} />
         <input type="hidden" name="id" value={id} />
