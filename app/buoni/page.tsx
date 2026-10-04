@@ -59,12 +59,14 @@ export default async function BondsPage({ searchParams }: PageProps<"/buoni">) {
             </div>
             <div style={{ textAlign: "right" }}>
               <div className="amount">{eur(b.value)}</div>
-              <Link className="btn btn-ghost" href={`/buoni?edit=${b.id}`}>Modifica</Link>
-              <form method="post" action="/api/bonds" style={{ display: "inline" }}>
-                <input type="hidden" name="action" value="delete" />
-                <input type="hidden" name="id" value={b.id} />
-                <button className="btn btn-ghost danger" type="submit">Elimina</button>
-              </form>
+              <div className="row-actions">
+                <Link className="btn btn-ghost" href={`/buoni?edit=${b.id}`}>Modifica</Link>
+                <form method="post" action="/api/bonds" style={{ display: "inline" }}>
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="id" value={b.id} />
+                  <button className="btn btn-ghost danger" type="submit">Elimina</button>
+                </form>
+              </div>
             </div>
           </div>
         ))}

@@ -51,12 +51,14 @@ export default async function CardsPage({ searchParams }: PageProps<"/carte">) {
             </div>
             <div style={{ textAlign: "right" }}>
               <div className={`amount${c.balance > 0 ? " neg" : ""}`}>{eur(-c.balance)}</div>
-              <Link className="btn btn-ghost" href={`/carte?edit=${c.id}`}>Modifica</Link>
-              <form method="post" action="/api/cards" style={{ display: "inline" }}>
-                <input type="hidden" name="action" value="delete" />
-                <input type="hidden" name="id" value={c.id} />
-                <button className="btn btn-ghost danger" type="submit">Elimina</button>
-              </form>
+              <div className="row-actions">
+                <Link className="btn btn-ghost" href={`/carte?edit=${c.id}`}>Modifica</Link>
+                <form method="post" action="/api/cards" style={{ display: "inline" }}>
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="id" value={c.id} />
+                  <button className="btn btn-ghost danger" type="submit">Elimina</button>
+                </form>
+              </div>
             </div>
           </div>
         ))}

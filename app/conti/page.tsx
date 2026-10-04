@@ -43,12 +43,14 @@ export default async function ManualAccountsPage({ searchParams }: PageProps<"/c
             </div>
             <div style={{ textAlign: "right" }}>
               <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
-              <Link className="btn btn-ghost" href={`/conti?edit=${a.id}`}>Modifica</Link>
-              <form method="post" action="/api/accounts" style={{ display: "inline" }}>
-                <input type="hidden" name="action" value="delete" />
-                <input type="hidden" name="id" value={a.id} />
-                <button className="btn btn-ghost danger" type="submit">Elimina</button>
-              </form>
+              <div className="row-actions">
+                <Link className="btn btn-ghost" href={`/conti?edit=${a.id}`}>Modifica</Link>
+                <form method="post" action="/api/accounts" style={{ display: "inline" }}>
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="id" value={a.id} />
+                  <button className="btn btn-ghost danger" type="submit">Elimina</button>
+                </form>
+              </div>
             </div>
           </div>
         ))}

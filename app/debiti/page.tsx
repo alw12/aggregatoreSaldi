@@ -52,12 +52,14 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
             </div>
             <div style={{ textAlign: "right" }}>
               <div className="amount">{eur(d.amount)}</div>
-              <Link className="btn btn-ghost" href={`/debiti?edit=${d.id}`}>Modifica</Link>
-              <form method="post" action="/api/debts" style={{ display: "inline" }}>
-                <input type="hidden" name="action" value="delete" />
-                <input type="hidden" name="id" value={d.id} />
-                <button className="btn btn-ghost danger" type="submit">Elimina</button>
-              </form>
+              <div className="row-actions">
+                <Link className="btn btn-ghost" href={`/debiti?edit=${d.id}`}>Modifica</Link>
+                <form method="post" action="/api/debts" style={{ display: "inline" }}>
+                  <input type="hidden" name="action" value="delete" />
+                  <input type="hidden" name="id" value={d.id} />
+                  <button className="btn btn-ghost danger" type="submit">Elimina</button>
+                </form>
+              </div>
             </div>
           </div>
         ))}

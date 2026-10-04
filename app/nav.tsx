@@ -6,6 +6,7 @@ const SECTIONS = [
   { href: "/buoni", label: "Buoni" },
   { href: "/carte", label: "Carte" },
   { href: "/conti", label: "Conti" },
+  { href: "/beni", label: "Beni" },
   { href: "/debiti", label: "Debiti" },
 ] as const;
 
@@ -24,7 +25,7 @@ export function Nav({ current }: { current: string }) {
           </form>
         </div>
       </div>
-      <nav className="sections" aria-label="Sezioni">
+      <nav className="sections" aria-label="Sezioni" id="sections">
         {SECTIONS.map((s) => (
           <Link key={s.href} href={s.href} className="section-link" aria-current={s.href === current ? "page" : undefined}>
             {s.label}
@@ -34,6 +35,13 @@ export function Nav({ current }: { current: string }) {
           Collega banca
         </Link>
       </nav>
+      {/* Su telefono porta in vista la sezione aperta (il menu scorre in orizzontale). */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            "(function(){var n=document.getElementById('sections');var a=n&&n.querySelector('[aria-current=page]');if(a&&a.offsetLeft+a.offsetWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-16;})();",
+        }}
+      />
     </header>
   );
 }

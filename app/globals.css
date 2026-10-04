@@ -300,3 +300,6 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .hero-alt { display: flex; align-items: baseline; gap: 10px; margin: -4px 0 16px; }
 .hero-alt-label { color: var(--muted); font-size: 14px; }
 .hero-alt-value { font-size: 24px; font-weight: 400; letter-spacing: -0.02em; }
+
+.row-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: 2px; white-space: nowrap; }
+.row-actions form { display: inline; margin: 0; }
