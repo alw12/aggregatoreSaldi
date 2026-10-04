@@ -296,3 +296,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .liability-label { color: var(--muted); font-size: 13px; }
 .liability-value { font-size: 18px; font-weight: 500; }
 .liability-value.neg { color: var(--negative); }
+
+.hero-alt { display: flex; align-items: baseline; gap: 10px; margin: -4px 0 16px; }
+.hero-alt-label { color: var(--muted); font-size: 14px; }
+.hero-alt-value { font-size: 24px; font-weight: 400; letter-spacing: -0.02em; }

@@ -153,6 +153,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           <section className="hero" aria-labelledby="hero-label">
             <div id="hero-label" className="hero-label">Patrimonio netto</div>
             <div className="hero-value"><HeroAmount value={net} /></div>
+            {debtsTotal > 0 && (
+              <div className="hero-alt">
+                <span className="hero-alt-label">Senza debiti</span>
+                <span className="hero-alt-value">{fmt(net + debtsTotal, "EUR")}</span>
+              </div>
+            )}
             {otherCurrencies.map(([cur, amt]) => (
               <div key={cur} className="hero-other">+ {fmt(amt, cur)}</div>
             ))}
