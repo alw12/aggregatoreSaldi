@@ -10,7 +10,7 @@ import { listManualAccounts, type ManualAccount } from "@/lib/manual";
 import { loadHistory, recordSnapshot, todayRome, type Snapshot } from "@/lib/history";
 import { QuickEdit } from "./quick-edit";
 import { Nav } from "./nav";
-import { AllocationBar } from "./charts";
+import { AllocationBar, SplitChart } from "./charts";
 import { TrendChart } from "./trend-chart";
 
 export const dynamic = "force-dynamic";
@@ -123,10 +123,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const today = todayRome();
   const complete = !isEmpty && failed === 0 && !portfolioError && holdings.every((h) => h.value !== null);
   if (complete) after(() => recordSnapshot({ total: net, cash: cashEur, invested, cards: cardsDebt }));
-  const trend = [
+  const days: Snapshot[] = [
     ...history.filter((s) => s.date !== today),
-    ...(complete ? [{ date: today, total: net }] : history.filter((s) => s.date === today)),
-  ].map((s) => ({ date: s.date, total: s.total }));
+    ...(complete ? [{ date: today, total: net, cash: cashEur, invested, cards: cardsDebt }] : history.filter((s) => s.date === today)),
+  ];
+  const trend = days.map((s) => ({ date: s.date, value: s.total }));
+  const investedShare = days
+    .filter((s) => s.cash + s.invested > 0)
+    .map((s) => ({ date: s.date, value: Math.max(0, s.invested) / (Math.max(0, s.cash) + Math.max(0, s.invested)) }));
 
   return (
     <main className="container">
@@ -169,6 +173,25 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             </div>
           )}
 
+          {cashEur + invested > 0 && (
+            <section className="card chart-card">
+              <div className="chart-title">Investito e liquido</div>
+              <SplitChart cash={cashEur} etf={holdingsValue} bonds={bondsValue} />
+              <div className="split-sub">
+                {investedShare.length >= 2 ? (
+                  <>
+                    <p className="chart-note">Quota investita giorno per giorno.</p>
+                    <TrendChart points={investedShare} unit="pct" label="Quota investita" slot={2} />
+                  </>
+                ) : (
+                  <p className="chart-note" style={{ marginBottom: 0 }}>
+                    Da domani qui vedi anche come cambia nel tempo la quota investita.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+
           <section className="card chart-card">
             <div className="chart-title">Andamento</div>
             {trend.length >= 2 ? (
@@ -176,7 +199,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 <p className="chart-note">
                   Patrimonio netto dal {shortDate(trend[0].date)}. Passa sopra il grafico per il valore di ogni giorno.
                 </p>
-                <TrendChart points={trend} />
+                <TrendChart points={trend} label="Patrimonio netto" />
               </>
             ) : (
               <p className="chart-note" style={{ marginBottom: 0 }}>

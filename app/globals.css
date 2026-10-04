@@ -266,3 +266,22 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+.trend.slot2 .trend-line { stroke: var(--s2); }
+.trend.slot2 .trend-area, .trend.slot2 .trend-dot { fill: var(--s2); }
+
+.split-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 12px 0 14px; }
+.split-fig { display: grid; gap: 2px; }
+.split-fig.right { text-align: right; }
+.split-name { color: var(--muted); font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+.split-fig.right .split-name { justify-content: flex-end; }
+.split-pct { font-size: 34px; font-weight: 300; letter-spacing: -0.03em; line-height: 1.05; }
+.split-amt { font-size: 14px; font-weight: 500; }
+.split-bar { display: flex; gap: 2px; height: 12px; }
+.split-bar > span { min-width: 4px; }
+.split-bar > span:first-child { border-radius: 4px 0 0 4px; }
+.split-bar > span:last-child { border-radius: 0 4px 4px 0; }
+.split-groups { display: flex; gap: 2px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.split-groups > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-top: 1px solid var(--faint); padding-top: 3px; }
+.split-groups > span:last-child { text-align: right; }
+.split-sub { margin-top: 18px; }
