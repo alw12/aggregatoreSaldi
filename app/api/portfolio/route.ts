@@ -1,14 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getHolding, removeHolding, resolveSymbol, saveHolding } from "@/lib/portfolio";
-
-/** Accetta numeri all'italiana ("1.234,56") o all'inglese ("1234.56"). */
-function parseNumber(raw: FormDataEntryValue | null): number | null {
-  const s = String(raw ?? "").trim().replace(/\s|€/g, "");
-  if (!s) return null;
-  const normalized = s.includes(",") ? s.replace(/\./g, "").replace(",", ".") : s;
-  const n = Number(normalized);
-  return Number.isFinite(n) ? n : NaN;
-}
+import { parseNumber } from "@/lib/parse";
 
 function back(request: NextRequest, params: Record<string, string> = {}) {
   const url = new URL("/portfolio", request.url);

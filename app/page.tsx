@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { loadDashboard, psuHeadersFrom, type BankView } from "@/lib/data";
 import { hasStore } from "@/lib/store";
 import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
+import { loadBonds, type BondView } from "@/lib/bonds";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ function TopBar() {
         <form method="post" action="/api/refresh"><button className="btn" type="submit">↻ Aggiorna</button></form>
         <Link className="btn" href="/connect">+ Banca</Link>
         <Link className="btn" href="/portfolio">Portafoglio</Link>
+        <Link className="btn" href="/buoni">Buoni</Link>
         <form method="post" action="/api/logout"><button className="btn" type="submit">Esci</button></form>
       </div>
     </header>
@@ -59,14 +61,16 @@ export default async function Home() {
 
   let banks: BankView[];
   let portfolio: { holdings: HoldingView[]; error: string | null };
+  let bonds: BondView[];
   try {
     const psu = psuHeadersFrom(await headers());
-    [banks, portfolio] = await Promise.all([
+    [banks, portfolio, bonds] = await Promise.all([
       loadDashboard(psu),
       loadPortfolio().then(
         (holdings) => ({ holdings, error: null }),
         (e: unknown) => ({ holdings: [] as HoldingView[], error: e instanceof Error ? e.message : String(e) }),
       ),
+      loadBonds(),
     ]);
   } catch (e) {
     return (
@@ -84,7 +88,9 @@ export default async function Home() {
   const accountsCount = banks.reduce((n, b) => n + b.accounts.length, 0);
   const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
   const { holdings, error: portfolioError } = portfolio;
-  const invested = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
+  const holdingsValue = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
+  const bondsValue = bonds.reduce((sum, b) => sum + b.value, 0);
+  const invested = holdingsValue + bondsValue;
   const cashEur = totals.find(([c]) => c === "EUR")?.[1] ?? 0;
   const otherCurrencies = totals.filter(([c]) => c !== "EUR");
   const oldest = banks.map((b) => b.fetchedAt).filter(Boolean).sort()[0] ?? null;
@@ -93,7 +99,7 @@ export default async function Home() {
     <main className="container">
       <TopBar />
 
-      {banks.length === 0 && holdings.length === 0 ? (
+      {banks.length === 0 && holdings.length === 0 && bonds.length === 0 ? (
         <div className="card empty">
           <p>Nessuna banca collegata.</p>
           <Link className="btn btn-primary" href="/connect">Collega la prima banca</Link>
@@ -129,7 +135,7 @@ export default async function Home() {
                   <div className="bank-name">Portafoglio Trade Republic</div>
                   <div className="bank-meta">Prezzi di mercato, aggiornati ogni 15 minuti</div>
                 </div>
-                <div className="bank-sum">{fmt(invested, "EUR")}</div>
+                <div className="bank-sum">{fmt(holdingsValue, "EUR")}</div>
               </div>
               {portfolioError && <div className="err" style={{ textAlign: "left" }}>{portfolioError}</div>}
               {holdings.map((h) => (
@@ -150,6 +156,36 @@ export default async function Home() {
               ))}
               <div style={{ textAlign: "right", marginTop: 8 }}>
                 <Link className="btn btn-ghost" href="/portfolio">Modifica</Link>
+              </div>
+            </section>
+          )}
+
+          {bonds.length > 0 && (
+            <section className="card bank">
+              <div className="bank-head">
+                <div>
+                  <div className="bank-name">Buoni fruttiferi postali</div>
+                  <div className="bank-meta">Valori netti, inseriti a mano o stimati dal tasso</div>
+                </div>
+                <div className="bank-sum">{fmt(bondsValue, "EUR")}</div>
+              </div>
+              {bonds.map((b) => (
+                <div key={b.id} className="account">
+                  <div>
+                    <div className="account-label">
+                      {b.name}
+                      {b.matured && <span className="badge">scaduto</span>}
+                    </div>
+                    <div className="account-iban">
+                      {fmt(b.capital, "EUR")} sottoscritti il {new Date(`${b.subscribedAt}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" })}
+                      {b.valueSource === "stima" ? " (stima)" : b.valueSource === "nominale" ? " (nominale)" : ""}
+                    </div>
+                  </div>
+                  <div className="amount">{fmt(b.value, "EUR")}</div>
+                </div>
+              ))}
+              <div style={{ textAlign: "right", marginTop: 8 }}>
+                <Link className="btn btn-ghost" href="/buoni">Modifica</Link>
               </div>
             </section>
           )}
