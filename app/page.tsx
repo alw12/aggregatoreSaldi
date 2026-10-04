@@ -4,6 +4,7 @@ import { loadDashboard, psuHeadersFrom, type BankView } from "@/lib/data";
 import { hasStore } from "@/lib/store";
 import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
 import { loadBonds, type BondView } from "@/lib/bonds";
+import { loadCards, type CreditCardView } from "@/lib/cards";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ function TopBar() {
         <Link className="btn" href="/connect">+ Banca</Link>
         <Link className="btn" href="/portfolio">Portafoglio</Link>
         <Link className="btn" href="/buoni">Buoni</Link>
+        <Link className="btn" href="/carte">Carte</Link>
         <form method="post" action="/api/logout"><button className="btn" type="submit">Esci</button></form>
       </div>
     </header>
@@ -62,15 +64,17 @@ export default async function Home() {
   let banks: BankView[];
   let portfolio: { holdings: HoldingView[]; error: string | null };
   let bonds: BondView[];
+  let cards: CreditCardView[];
   try {
     const psu = psuHeadersFrom(await headers());
-    [banks, portfolio, bonds] = await Promise.all([
+    [banks, portfolio, bonds, cards] = await Promise.all([
       loadDashboard(psu),
       loadPortfolio().then(
         (holdings) => ({ holdings, error: null }),
         (e: unknown) => ({ holdings: [] as HoldingView[], error: e instanceof Error ? e.message : String(e) }),
       ),
       loadBonds(),
+      loadCards(),
     ]);
   } catch (e) {
     return (
@@ -91,6 +95,7 @@ export default async function Home() {
   const holdingsValue = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
   const bondsValue = bonds.reduce((sum, b) => sum + b.value, 0);
   const invested = holdingsValue + bondsValue;
+  const cardsDebt = cards.reduce((sum, c) => sum + c.balance, 0);
   const cashEur = totals.find(([c]) => c === "EUR")?.[1] ?? 0;
   const otherCurrencies = totals.filter(([c]) => c !== "EUR");
   const oldest = banks.map((b) => b.fetchedAt).filter(Boolean).sort()[0] ?? null;
@@ -99,7 +104,7 @@ export default async function Home() {
     <main className="container">
       <TopBar />
 
-      {banks.length === 0 && holdings.length === 0 && bonds.length === 0 ? (
+      {banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 ? (
         <div className="card empty">
           <p>Nessuna banca collegata.</p>
           <Link className="btn btn-primary" href="/connect">Collega la prima banca</Link>
@@ -108,13 +113,14 @@ export default async function Home() {
         <>
           <section className="card total">
             <div className="label">Totale</div>
-            <div className="value">{fmt(cashEur + invested, "EUR")}</div>
+            <div className="value">{fmt(cashEur + invested - cardsDebt, "EUR")}</div>
             {otherCurrencies.map(([cur, amt]) => (
               <div key={cur} className="value">{fmt(amt, cur)}</div>
             ))}
             <div className="split">
               <div><span>Liquidità </span>{fmt(cashEur, "EUR")}</div>
               <div><span>Investimenti </span>{fmt(invested, "EUR")}</div>
+              {cards.length > 0 && <div><span>Carte </span>{fmt(-cardsDebt, "EUR")}</div>}
             </div>
             <div className="sub">
               {accountsCount} conti su {banks.length} {banks.length === 1 ? "banca" : "banche"} · aggiornato {when(oldest)}
@@ -186,6 +192,33 @@ export default async function Home() {
               ))}
               <div style={{ textAlign: "right", marginTop: 8 }}>
                 <Link className="btn btn-ghost" href="/buoni">Modifica</Link>
+              </div>
+            </section>
+          )}
+
+          {cards.length > 0 && (
+            <section className="card bank">
+              <div className="bank-head">
+                <div>
+                  <div className="bank-name">Carte di credito</div>
+                  <div className="bank-meta">Speso da addebitare, inserito a mano</div>
+                </div>
+                <div className={`bank-sum${cardsDebt > 0 ? " neg" : ""}`}>{fmt(-cardsDebt, "EUR")}</div>
+              </div>
+              {cards.map((c) => (
+                <div key={c.id} className="account">
+                  <div>
+                    <div className="account-label">{c.name}</div>
+                    <div className="account-iban">
+                      {c.last4 && <>•••• {c.last4}</>}
+                      {c.nextCharge && <>{c.last4 ? " · " : ""}addebito il {new Date(`${c.nextCharge}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" })}</>}
+                    </div>
+                  </div>
+                  <div className={`amount${c.balance > 0 ? " neg" : ""}`}>{fmt(-c.balance, "EUR")}</div>
+                </div>
+              ))}
+              <div style={{ textAlign: "right", marginTop: 8 }}>
+                <Link className="btn btn-ghost" href="/carte">Modifica</Link>
               </div>
             </section>
           )}

@@ -76,7 +76,7 @@ a:hover { text-decoration: underline; }
 .account-label { font-size: 14px; }
 .account-iban { color: var(--muted); font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 2px; white-space: nowrap; }
 .amount { font-variant-numeric: tabular-nums; font-weight: 500; white-space: nowrap; }
-.amount.neg { color: var(--negative); }
+.amount.neg, .bank-sum.neg { color: var(--negative); }
 .err { color: var(--negative); font-size: 13px; text-align: right; }
 
 .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--warn-bg); color: var(--warn-text); margin-left: 6px; }
