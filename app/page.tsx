@@ -267,7 +267,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             const sums = new Map<string, number>();
             for (const a of b.accounts) if (a.amount !== null) sums.set(a.currency, (sums.get(a.currency) ?? 0) + a.amount);
             return (
-              <section key={b.sessionId} className="card bank">
+              <section key={b.sessionId} className="card bank clickable">
+                <Link href={`/banca/${b.sessionId}`} className="bank-link">
                 <div className="bank-head">
                   <div>
                     <div className="bank-name">
@@ -275,7 +276,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                       {b.expired ? <span className="badge">scaduto</span> : b.daysLeft <= 14 ? <span className="badge">scade tra {b.daysLeft} gg</span> : null}
                     </div>
                     <div className="bank-meta">
-                      Consenso fino al {new Date(b.validUntil).toLocaleDateString("it-IT")} · letto {when(b.fetchedAt)}
+                      Consenso fino al {new Date(b.validUntil).toLocaleDateString("it-IT")} · letto {when(b.fetchedAt)} · tocca per modificare
                     </div>
                   </div>
                   <div className="bank-sum">
@@ -294,17 +295,14 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                         </div>
                       )}
                     </div>
-                    <div>
-                      {a.amount !== null ? (
-                        <div className={`amount${a.amount < 0 ? " neg" : ""}`} style={{ textAlign: "right" }}>{fmt(a.amount, a.currency)}</div>
-                      ) : (
-                        <div className="err">{a.error}</div>
-                      )}
-                      <QuickEdit kind="account" id={a.uid} value={a.amount}
-                        extra={a.manualAt ? { action: "clear", label: "Automatico" } : undefined} />
-                    </div>
+                    {a.amount !== null ? (
+                      <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
+                    ) : (
+                      <div className="err">{a.error}</div>
+                    )}
                   </div>
                 ))}
+                </Link>
 
                 <form method="post" action="/api/eb/disconnect" style={{ textAlign: "right", marginTop: 8 }}>
                   <input type="hidden" name="sessionId" value={b.sessionId} />

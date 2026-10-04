@@ -4,15 +4,21 @@ import { clearOverride, getManualAccount, saveManualAccount, setOverride } from 
 import { listSessions } from "@/lib/store";
 import { parseNumber } from "@/lib/parse";
 
-function home(request: NextRequest, error?: string) {
-  const url = new URL("/", request.url);
-  if (error) url.searchParams.set("error", error);
-  return NextResponse.redirect(url, 303);
+/** Pagina a cui tornare: solo percorsi interni, così il redirect non può portare fuori dal sito. */
+function target(raw: FormDataEntryValue | null): string {
+  const next = String(raw ?? "");
+  return /^\/[\w\-/]*$/.test(next) && !next.startsWith("//") ? next : "/";
 }
 
 /** Aggiornamento rapido di un saldo dalla dashboard: conto PSD2, conto manuale o carta. */
 export async function POST(request: NextRequest) {
   const form = await request.formData();
+  const next = target(form.get("next"));
+  const home = (req: NextRequest, error?: string) => {
+    const url = new URL(next, req.url);
+    if (error) url.searchParams.set("error", error);
+    return NextResponse.redirect(url, 303);
+  };
   const kind = String(form.get("kind") ?? "");
   const action = String(form.get("action") ?? "set");
   const id = String(form.get("id") ?? "").trim();
