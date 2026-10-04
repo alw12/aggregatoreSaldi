@@ -7,6 +7,7 @@ import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
 import { loadBonds, type BondView } from "@/lib/bonds";
 import { loadCards, type CreditCardView } from "@/lib/cards";
 import { listManualAccounts, type ManualAccount } from "@/lib/manual";
+import { listDebts, type Debt } from "@/lib/debts";
 import { loadHistory, recordSnapshot, todayRome, type Snapshot } from "@/lib/history";
 import { QuickEdit } from "./quick-edit";
 import { Nav } from "./nav";
@@ -79,9 +80,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   let cards: CreditCardView[];
   let manualAccounts: ManualAccount[];
   let history: Snapshot[];
+  let debts: Debt[];
   try {
     const psu = psuHeadersFrom(await headers());
-    [banks, portfolio, bonds, cards, manualAccounts, history] = await Promise.all([
+    [banks, portfolio, bonds, cards, manualAccounts, history, debts] = await Promise.all([
       loadDashboard(psu),
       loadPortfolio().then(
         (holdings) => ({ holdings, error: null }),
@@ -91,6 +93,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       loadCards(),
       listManualAccounts(),
       loadHistory().catch(() => [] as Snapshot[]),
+      listDebts(),
     ]);
   } catch (e) {
     return (
@@ -116,16 +119,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const cashEur = totals.find(([c]) => c === "EUR")?.[1] ?? 0;
   const otherCurrencies = totals.filter(([c]) => c !== "EUR");
   const oldest = banks.map((b) => b.fetchedAt).filter(Boolean).sort()[0] ?? null;
-  const net = cashEur + invested - cardsDebt;
-  const isEmpty = banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 && manualAccounts.length === 0;
+  const debtsTotal = debts.reduce((sum, d) => sum + d.amount, 0);
+  const net = cashEur + invested - cardsDebt - debtsTotal;
+  const isEmpty =
+    banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 && manualAccounts.length === 0 && debts.length === 0;
 
   // Una fotografia al giorno per il grafico; solo se tutto è stato letto, per non registrare buchi.
   const today = todayRome();
   const complete = !isEmpty && failed === 0 && !portfolioError && holdings.every((h) => h.value !== null);
-  if (complete) after(() => recordSnapshot({ total: net, cash: cashEur, invested, cards: cardsDebt }));
+  if (complete) after(() => recordSnapshot({ total: net, cash: cashEur, invested, cards: cardsDebt, debts: debtsTotal }));
   const days: Snapshot[] = [
     ...history.filter((s) => s.date !== today),
-    ...(complete ? [{ date: today, total: net, cash: cashEur, invested, cards: cardsDebt }] : history.filter((s) => s.date === today)),
+    ...(complete ? [{ date: today, total: net, cash: cashEur, invested, cards: cardsDebt, debts: debtsTotal }] : history.filter((s) => s.date === today)),
   ];
   const trend = days.map((s) => ({ date: s.date, value: s.total }));
   const investedShare = days
@@ -158,8 +163,24 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 { key: "bfp", label: "Buoni postali", value: bondsValue, slot: 3 },
               ]}
             />
+            {(cards.length > 0 || debts.length > 0) && (
+              <div className="liabilities" aria-label="Già sottratti dal patrimonio netto">
+                {cards.length > 0 && (
+                  <Link href="/carte" className="liability">
+                    <span className="liability-label">Carte da addebitare</span>
+                    <span className={`liability-value${cardsDebt > 0 ? " neg" : ""}`}>{fmt(-cardsDebt, "EUR")}</span>
+                  </Link>
+                )}
+                {debts.length > 0 && (
+                  <Link href="/debiti" className="liability">
+                    <span className="liability-label">Debiti</span>
+                    <span className={`liability-value${debtsTotal > 0 ? " neg" : ""}`}>{fmt(-debtsTotal, "EUR")}</span>
+                  </Link>
+                )}
+              </div>
+            )}
             <div className="hero-sub">
-              {cardsDebt > 0 && <>Già tolti {fmt(cardsDebt, "EUR")} di carte da addebitare. </>}
+              {(cardsDebt > 0 || debtsTotal > 0) && <>Il patrimonio netto è già al netto di {cardsDebt > 0 && debtsTotal > 0 ? "carte e debiti" : cardsDebt > 0 ? "carte" : "debiti"}. </>}
               {accountsCount} {accountsCount === 1 ? "conto" : "conti"}, letti {when(oldest)}.
               {failed > 0 && (
                 <span className="warn"> {failed} non {failed === 1 ? "letto, escluso" : "letti, esclusi"} dal totale.</span>

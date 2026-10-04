@@ -286,3 +286,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .split-groups > span:last-child { text-align: right; }
 .split-sub { margin-top: 18px; }
 .account-iban.estimate { color: var(--warn-text); }
+
+.liabilities { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 16px; }
+.liability {
+  display: grid; gap: 2px; padding: 10px 14px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+}
+.liability:hover { text-decoration: none; border-color: var(--faint); }
+.liability-label { color: var(--muted); font-size: 13px; }
+.liability-value { font-size: 18px; font-weight: 500; }
+.liability-value.neg { color: var(--negative); }

@@ -4,10 +4,11 @@ import { redis } from "./store";
 /** Fotografia giornaliera del patrimonio, per il grafico dell'andamento. */
 export type Snapshot = {
   date: string; // YYYY-MM-DD, ora di Roma
-  total: number; // netto: liquidità + investimenti − carte
+  total: number; // netto: liquidità + investimenti − carte − debiti
   cash: number;
   invested: number;
   cards: number;
+  debts?: number; // assente nelle fotografie salvate prima dei debiti
 };
 
 const KEY = "saldi:history";
@@ -28,6 +29,7 @@ export async function recordSnapshot(s: Omit<Snapshot, "date">): Promise<void> {
     cash: round(s.cash),
     invested: round(s.invested),
     cards: round(s.cards),
+    debts: round(s.debts ?? 0),
   };
   try {
     await r.hset(KEY, { [snap.date]: snap });

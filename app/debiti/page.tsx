@@ -8,7 +8,7 @@ const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", c
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const it = (n: number) => String(n).replace(".", ",");
 
-/** Debiti: promemoria privato. Non entra nel totale e non è linkato dalla navigazione. */
+/** Debiti: sottratti dal patrimonio netto, con un contatore separato in panoramica. */
 export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) {
   const sp = await searchParams;
   const error = typeof sp.error === "string" ? sp.error : null;
@@ -28,7 +28,7 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
     <main className="container">
       <Nav current="/debiti" />
       <h1 className="page-title">Debiti</h1>
-      <p className="page-lead">Solo per te: non vengono sottratti dal patrimonio e non compaiono nella panoramica.</p>
+      <p className="page-lead">Vengono sottratti dal patrimonio netto e in panoramica hanno un contatore a parte.</p>
 
       {error && <div className="notice error">{error}</div>}
       {loadError && <div className="notice error">{loadError}</div>}

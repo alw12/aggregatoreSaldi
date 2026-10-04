@@ -1,10 +1,7 @@
 import "server-only";
 import { redis } from "./store";
 
-/**
- * Debito registrato a mano. Solo promemoria privato: non entra nel totale e non
- * compare in dashboard; si vede solo su /debiti.
- */
+/** Debito registrato a mano: sottratto dal patrimonio netto, con un contatore separato in panoramica. */
 export type Debt = {
   id: string;
   name: string; // a chi / per cosa

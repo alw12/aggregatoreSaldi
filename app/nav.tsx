@@ -6,6 +6,7 @@ const SECTIONS = [
   { href: "/buoni", label: "Buoni" },
   { href: "/carte", label: "Carte" },
   { href: "/conti", label: "Conti" },
+  { href: "/debiti", label: "Debiti" },
 ] as const;
 
 /** Testata comune: marchio, sezioni (scorrevoli su telefono), aggiorna ed esci. */
