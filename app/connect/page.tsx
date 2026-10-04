@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Nav } from "@/app/nav";
 import { listAspsps, type Aspsp } from "@/lib/eb";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +22,8 @@ export default async function ConnectPage({ searchParams }: PageProps<"/connect"
 
   return (
     <main className="container">
-      <header className="topbar">
-        <h1>Collega una banca</h1>
-        <Link className="btn" href="/">← Indietro</Link>
-      </header>
+      <Nav current="/connect" />
+      <h1 className="page-title">Collega una banca</h1>
 
       {error && <div className="notice error">{error}</div>}
       {loadError && <div className="notice error">Impossibile caricare le banche: {loadError}</div>}

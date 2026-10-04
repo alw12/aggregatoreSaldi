@@ -1,9 +1,10 @@
-import Link from "next/link";
+import { Nav } from "@/app/nav";
 import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
+import { HoldingBars } from "@/app/charts";
 
 export const dynamic = "force-dynamic";
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 const num = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 6 }).format(n);
 
 export default async function PortfolioPage({ searchParams }: PageProps<"/portfolio">) {
@@ -22,16 +23,23 @@ export default async function PortfolioPage({ searchParams }: PageProps<"/portfo
 
   return (
     <main className="container">
-      <header className="topbar">
-        <h1>Portafoglio Trade Republic</h1>
-        <Link className="btn" href="/">← Dashboard</Link>
-      </header>
+      <Nav current="/portfolio" />
+      <h1 className="page-title">Portafoglio Trade Republic</h1>
 
       {error && <div className="notice error">{error}</div>}
       {warning && <div className="notice">{warning}</div>}
       {loadError && <div className="notice error">{loadError}</div>}
 
-      <section className="card" style={{ marginBottom: 16 }}>
+      {holdings.some((h) => (h.value ?? 0) > 0) && (
+        <section className="card chart-card">
+          <HoldingBars
+            caption="Dove sono investiti"
+            rows={holdings.map((h) => ({ key: h.id, label: h.name, value: h.value ?? 0 }))}
+          />
+        </section>
+      )}
+
+      <section className="card bank">
         <div className="bank-head">
           <div className="bank-name">Posizioni</div>
           <div className="bank-sum">{eur(total)}</div>
@@ -43,8 +51,8 @@ export default async function PortfolioPage({ searchParams }: PageProps<"/portfo
               <div className="account-label">{h.name}</div>
               <div className="account-iban">
                 {h.id}
-                {h.symbol && h.symbol !== h.id ? ` · ${h.symbol}` : ""} · {num(h.qty)} quote
-                {h.price !== null && <> · {eur(h.price)} ({h.priceSource})</>}
+                {h.symbol && h.symbol !== h.id ? `, ${h.symbol}` : ""}, {num(h.qty)} quote
+                {h.price !== null && <> a {eur(h.price)}{h.priceSource === "manuale" ? " (manuale)" : ""}</>}
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -52,7 +60,7 @@ export default async function PortfolioPage({ searchParams }: PageProps<"/portfo
               <form method="post" action="/api/portfolio" style={{ display: "inline" }}>
                 <input type="hidden" name="action" value="delete" />
                 <input type="hidden" name="id" value={h.id} />
-                <button className="btn btn-ghost" type="submit">Elimina</button>
+                <button className="btn btn-ghost danger" type="submit">Elimina</button>
               </form>
             </div>
           </div>
@@ -60,13 +68,13 @@ export default async function PortfolioPage({ searchParams }: PageProps<"/portfo
       </section>
 
       <form className="card form-grid" method="post" action="/api/portfolio">
-        <div className="bank-name" style={{ marginBottom: 4 }}>Aggiungi o aggiorna posizione</div>
-        <p className="bank-meta" style={{ margin: "0 0 8px" }}>
+        <div className="form-title">Aggiungi o aggiorna posizione</div>
+        <p className="form-hint">
           Per aggiornare dopo un acquisto del PAC, reinserisci lo stesso ISIN con le quote totali nuove.
         </p>
         <label>
           ISIN o simbolo
-          <input name="id" required placeholder="IE00B44Z5B48 · per Bitcoin: BTC-EUR" autoCapitalize="characters" />
+          <input name="id" required placeholder="es. IE00B44Z5B48, per Bitcoin BTC-EUR" autoCapitalize="characters" />
         </label>
         <label>
           Quote totali possedute

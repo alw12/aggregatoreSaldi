@@ -1,11 +1,11 @@
-import Link from "next/link";
+import { Nav } from "@/app/nav";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { loadDashboard, psuHeadersFrom } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
-const fmt = (n: number, currency: string) => new Intl.NumberFormat("it-IT", { style: "currency", currency }).format(n);
+const fmt = (n: number, currency: string) => new Intl.NumberFormat("it-IT", { style: "currency", currency, useGrouping: "always" }).format(n);
 const when = (iso: string) =>
   new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(new Date(iso));
 const maskIban = (iban?: string) => (iban ? `${iban.slice(0, 4)} •••• ${iban.slice(-4)}` : undefined);
@@ -23,10 +23,8 @@ export default async function BankPage(props: PageProps<"/banca/[sessionId]">) {
 
   return (
     <main className="container">
-      <header className="topbar">
-        <h1>{bank.bank}</h1>
-        <Link className="btn" href="/">← Dashboard</Link>
-      </header>
+      <Nav current="/" />
+      <h1 className="page-title">{bank.bank}</h1>
 
       {error && <div className="notice error">{error}</div>}
 
@@ -44,7 +42,7 @@ export default async function BankPage(props: PageProps<"/banca/[sessionId]">) {
               <div className="bank-name">{a.label}</div>
               <div className="bank-meta">
                 {maskIban(a.iban)}
-                {a.manualAt ? <>{a.iban ? " · " : ""}saldo manuale dal {when(a.manualAt)}</> : a.error ? <>{a.iban ? " · " : ""}{a.error}</> : null}
+                {a.manualAt ? <>{a.iban ? ", " : ""}saldo manuale dal {when(a.manualAt)}</> : a.error ? <>{a.iban ? ", " : ""}{a.error}</> : null}
               </div>
             </div>
             {a.amount !== null && (

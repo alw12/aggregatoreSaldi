@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { Nav } from "@/app/nav";
 import { loadBonds, type BondView } from "@/lib/bonds";
 
 export const dynamic = "force-dynamic";
 
-const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
+const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 const num = (n: number) => new Intl.NumberFormat("it-IT", { maximumFractionDigits: 4 }).format(n);
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" });
 
@@ -30,15 +31,13 @@ export default async function BondsPage({ searchParams }: PageProps<"/buoni">) {
 
   return (
     <main className="container">
-      <header className="topbar">
-        <h1>Buoni fruttiferi postali</h1>
-        <Link className="btn" href="/">← Dashboard</Link>
-      </header>
+      <Nav current="/buoni" />
+      <h1 className="page-title">Buoni fruttiferi postali</h1>
 
       {error && <div className="notice error">{error}</div>}
       {loadError && <div className="notice error">{loadError}</div>}
 
-      <section className="card" style={{ marginBottom: 16 }}>
+      <section className="card bank">
         <div className="bank-head">
           <div className="bank-name">Buoni</div>
           <div className="bank-sum">{eur(total)}</div>
@@ -52,9 +51,9 @@ export default async function BondsPage({ searchParams }: PageProps<"/buoni">) {
                 {b.matured && <span className="badge">scaduto</span>}
               </div>
               <div className="account-iban">
-                {eur(b.capital)} dal {day(b.subscribedAt)} · {b.yearsHeld} {b.yearsHeld === 1 ? "anno" : "anni"}
-                {b.grossRate !== null && <> · {num(b.grossRate)}% lordo</>}
-                {b.maturityYears !== null && <> · durata {b.maturityYears} anni</>}
+                {eur(b.capital)} dal {day(b.subscribedAt)}, {b.yearsHeld} {b.yearsHeld === 1 ? "anno" : "anni"}
+                {b.grossRate !== null && <>, {num(b.grossRate)}% lordo</>}
+                {b.maturityYears !== null && <>, durata {b.maturityYears} anni</>}
                 {" "}({SOURCE_LABEL[b.valueSource]})
               </div>
             </div>
@@ -64,7 +63,7 @@ export default async function BondsPage({ searchParams }: PageProps<"/buoni">) {
               <form method="post" action="/api/bonds" style={{ display: "inline" }}>
                 <input type="hidden" name="action" value="delete" />
                 <input type="hidden" name="id" value={b.id} />
-                <button className="btn btn-ghost" type="submit">Elimina</button>
+                <button className="btn btn-ghost danger" type="submit">Elimina</button>
               </form>
             </div>
           </div>
@@ -72,15 +71,15 @@ export default async function BondsPage({ searchParams }: PageProps<"/buoni">) {
       </section>
 
       <form key={editing?.id ?? "new"} className="card form-grid" method="post" action="/api/bonds">
-        <div className="bank-name" style={{ marginBottom: 4 }}>{editing ? `Modifica ${editing.name}` : "Aggiungi buono"}</div>
-        <p className="bank-meta" style={{ margin: "0 0 8px" }}>
+        <div className="form-title">{editing ? `Modifica ${editing.name}` : "Aggiungi buono"}</div>
+        <p className="form-hint">
           Poste non espone i buoni via open banking. Se inserisci il valore di rimborso netto (app BancoPosta ▸ Buoni) uso
           quello; altrimenti stimo il valore dal tasso, con interessi composti annui al netto del 12,5%.
         </p>
         {editing && <input type="hidden" name="id" value={editing.id} />}
         <label>
           Nome o serie
-          <input name="name" placeholder="es. BFP 3x4 · TF103A" defaultValue={editing?.name} />
+          <input name="name" placeholder="es. BFP 3x4" defaultValue={editing?.name} />
         </label>
         <label>
           Importo sottoscritto in €

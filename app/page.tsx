@@ -1,17 +1,22 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { loadDashboard, psuHeadersFrom, type BankView } from "@/lib/data";
 import { hasStore } from "@/lib/store";
 import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
 import { loadBonds, type BondView } from "@/lib/bonds";
 import { loadCards, type CreditCardView } from "@/lib/cards";
 import { listManualAccounts, type ManualAccount } from "@/lib/manual";
+import { loadHistory, recordSnapshot, todayRome, type Snapshot } from "@/lib/history";
 import { QuickEdit } from "./quick-edit";
+import { Nav } from "./nav";
+import { AllocationBar } from "./charts";
+import { TrendChart } from "./trend-chart";
 
 export const dynamic = "force-dynamic";
 
 function fmt(amount: number, currency: string) {
-  return new Intl.NumberFormat("it-IT", { style: "currency", currency }).format(amount);
+  return new Intl.NumberFormat("it-IT", { style: "currency", currency, useGrouping: "always" }).format(amount);
 }
 
 function maskIban(iban?: string) {
@@ -21,8 +26,25 @@ function maskIban(iban?: string) {
 function when(iso: string | null) {
   if (!iso) return "—";
   return new Intl.DateTimeFormat("it-IT", {
-    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome",
+    day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome",
   }).format(new Date(iso));
+}
+
+const shortDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("it-IT", { day: "numeric", month: "short", timeZone: "UTC" });
+
+/** Il totale grande, con i centesimi in tono minore. */
+function HeroAmount({ value }: { value: number }) {
+  const parts = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).formatToParts(value);
+  const i = parts.findIndex((p) => p.type === "decimal");
+  if (i === -1) return <>{parts.map((p) => p.value).join("")}</>;
+  const head = parts.slice(0, i).map((p) => p.value).join("");
+  const tail = parts.slice(i).map((p) => p.value).join("");
+  return (
+    <>
+      {head}
+      <span className="cents">{tail}</span>
+    </>
+  );
 }
 
 function totalsByCurrency(banks: BankView[], manual: ManualAccount[]) {
@@ -34,34 +56,18 @@ function totalsByCurrency(banks: BankView[], manual: ManualAccount[]) {
   return [...totals.entries()].sort(([a], [b]) => (a === "EUR" ? -1 : b === "EUR" ? 1 : a.localeCompare(b)));
 }
 
-function TopBar() {
-  return (
-    <header className="topbar">
-      <h1>Saldi</h1>
-      <div className="actions">
-        <form method="post" action="/api/refresh"><button className="btn" type="submit">↻ Aggiorna</button></form>
-        <Link className="btn" href="/connect">+ Banca</Link>
-        <Link className="btn" href="/portfolio">Portafoglio</Link>
-        <Link className="btn" href="/buoni">Buoni</Link>
-        <Link className="btn" href="/carte">Carte</Link>
-        <Link className="btn" href="/conti">Conti</Link>
-        <form method="post" action="/api/logout"><button className="btn" type="submit">Esci</button></form>
-      </div>
-    </header>
-  );
-}
-
 export default async function Home({ searchParams }: PageProps<"/">) {
   const sp = await searchParams;
   const actionError = typeof sp.error === "string" ? sp.error : null;
+
   if (!hasStore()) {
     return (
       <main className="container">
-        <TopBar />
+        <Nav current="/" />
         <div className="notice">
-          Storage non configurato. Su Vercel aggiungi un database <strong>Upstash Redis</strong> dal
-          Marketplace (Storage → Upstash → Redis) e collegalo al progetto: le variabili
-          <code> KV_REST_API_URL</code> e <code>KV_REST_API_TOKEN</code> vengono impostate in automatico.
+          Storage non configurato. Su Vercel aggiungi un database <strong>Upstash Redis</strong> dal Marketplace
+          (Storage ▸ Upstash ▸ Redis) e collegalo al progetto: le variabili <code>KV_REST_API_URL</code> e{" "}
+          <code>KV_REST_API_TOKEN</code> vengono impostate in automatico.
         </div>
       </main>
     );
@@ -72,9 +78,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   let bonds: BondView[];
   let cards: CreditCardView[];
   let manualAccounts: ManualAccount[];
+  let history: Snapshot[];
   try {
     const psu = psuHeadersFrom(await headers());
-    [banks, portfolio, bonds, cards, manualAccounts] = await Promise.all([
+    [banks, portfolio, bonds, cards, manualAccounts, history] = await Promise.all([
       loadDashboard(psu),
       loadPortfolio().then(
         (holdings) => ({ holdings, error: null }),
@@ -83,11 +90,12 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       loadBonds(),
       loadCards(),
       listManualAccounts(),
+      loadHistory().catch(() => [] as Snapshot[]),
     ]);
   } catch (e) {
     return (
       <main className="container">
-        <TopBar />
+        <Nav current="/" />
         <div className="notice error">
           Il database non risponde: controlla le variabili Upstash del progetto su Vercel.
           <br />
@@ -96,6 +104,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
       </main>
     );
   }
+
   const totals = totalsByCurrency(banks, manualAccounts);
   const accountsCount = banks.reduce((n, b) => n + b.accounts.length, 0) + manualAccounts.length;
   const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
@@ -107,49 +116,152 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const cashEur = totals.find(([c]) => c === "EUR")?.[1] ?? 0;
   const otherCurrencies = totals.filter(([c]) => c !== "EUR");
   const oldest = banks.map((b) => b.fetchedAt).filter(Boolean).sort()[0] ?? null;
+  const net = cashEur + invested - cardsDebt;
+  const isEmpty = banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 && manualAccounts.length === 0;
+
+  // Una fotografia al giorno per il grafico; solo se tutto è stato letto, per non registrare buchi.
+  const today = todayRome();
+  const complete = !isEmpty && failed === 0 && !portfolioError && holdings.every((h) => h.value !== null);
+  if (complete) after(() => recordSnapshot({ total: net, cash: cashEur, invested, cards: cardsDebt }));
+  const trend = [
+    ...history.filter((s) => s.date !== today),
+    ...(complete ? [{ date: today, total: net }] : history.filter((s) => s.date === today)),
+  ].map((s) => ({ date: s.date, total: s.total }));
 
   return (
     <main className="container">
-      <TopBar />
+      <Nav current="/" />
 
       {actionError && <div className="notice error">{actionError}</div>}
 
-      {banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 && manualAccounts.length === 0 ? (
+      {isEmpty ? (
         <div className="card empty">
-          <p>Nessuna banca collegata.</p>
+          <p>Collega una banca o aggiungi a mano un conto, un investimento o un buono.</p>
           <Link className="btn btn-primary" href="/connect">Collega la prima banca</Link>
         </div>
       ) : (
         <>
-          <section className="card total">
-            <div className="label">Totale</div>
-            <div className="value">{fmt(cashEur + invested - cardsDebt, "EUR")}</div>
+          <section className="hero" aria-labelledby="hero-label">
+            <div id="hero-label" className="hero-label">Patrimonio netto</div>
+            <div className="hero-value"><HeroAmount value={net} /></div>
             {otherCurrencies.map(([cur, amt]) => (
-              <div key={cur} className="value">{fmt(amt, cur)}</div>
+              <div key={cur} className="hero-other">+ {fmt(amt, cur)}</div>
             ))}
-            <div className="split">
-              <div><span>Liquidità </span>{fmt(cashEur, "EUR")}</div>
-              <div><span>Investimenti </span>{fmt(invested, "EUR")}</div>
-              {cards.length > 0 && <div><span>Carte </span>{fmt(-cardsDebt, "EUR")}</div>}
-            </div>
-            <div className="sub">
-              {accountsCount} conti su {banks.length} {banks.length === 1 ? "banca" : "banche"}{manualAccounts.length > 0 && " + manuali"} · aggiornato {when(oldest)}
-              {failed > 0 && <> · <span style={{ color: "var(--negative)" }}>{failed} non {failed === 1 ? "letto" : "letti"}, esclus{failed === 1 ? "o" : "i"} dal totale</span></>}
+            <AllocationBar
+              parts={[
+                { key: "cash", label: "Liquidità", value: cashEur, slot: 1 },
+                { key: "etf", label: "ETF e crypto", value: holdingsValue, slot: 2 },
+                { key: "bfp", label: "Buoni postali", value: bondsValue, slot: 3 },
+              ]}
+            />
+            <div className="hero-sub">
+              {cardsDebt > 0 && <>Già tolti {fmt(cardsDebt, "EUR")} di carte da addebitare. </>}
+              {accountsCount} {accountsCount === 1 ? "conto" : "conti"}, letti {when(oldest)}.
+              {failed > 0 && (
+                <span className="warn"> {failed} non {failed === 1 ? "letto, escluso" : "letti, esclusi"} dal totale.</span>
+              )}
             </div>
           </section>
 
           {banks.some((b) => !b.expired && b.daysLeft <= 14) && (
             <div className="notice">
-              Uno o più consensi scadono a breve: ricollega la banca da “+ Banca” per non perdere l’accesso.
+              Uno o più consensi scadono a breve: ricollega la banca da “Collega banca” per non perdere l’accesso.
             </div>
+          )}
+
+          <section className="card chart-card">
+            <div className="chart-title">Andamento</div>
+            {trend.length >= 2 ? (
+              <>
+                <p className="chart-note">
+                  Patrimonio netto dal {shortDate(trend[0].date)}. Passa sopra il grafico per il valore di ogni giorno.
+                </p>
+                <TrendChart points={trend} />
+              </>
+            ) : (
+              <p className="chart-note" style={{ marginBottom: 0 }}>
+                Ogni giorno in cui apri Saldi viene salvato il totale: da domani qui compare la linea dell’andamento.
+              </p>
+            )}
+          </section>
+
+          {banks.map((b) => {
+            const sums = new Map<string, number>();
+            for (const a of b.accounts) if (a.amount !== null) sums.set(a.currency, (sums.get(a.currency) ?? 0) + a.amount);
+            return (
+              <section key={b.sessionId} className="card bank clickable">
+                <Link href={`/banca/${b.sessionId}`} className="bank-link">
+                  <div className="bank-head">
+                    <div>
+                      <div className="bank-name">
+                        {b.bank}
+                        {b.expired ? <span className="badge">consenso scaduto</span> : b.daysLeft <= 14 ? <span className="badge">scade tra {b.daysLeft} gg</span> : null}
+                      </div>
+                      <div className="bank-meta">Letto {when(b.fetchedAt)}. Tocca per correggere un saldo.</div>
+                    </div>
+                    <div className="bank-sum">
+                      {[...sums.entries()].map(([c, v]) => <div key={c}>{fmt(v, c)}</div>)}
+                    </div>
+                  </div>
+                  {b.accounts.map((a) => (
+                    <div key={a.uid} className="account">
+                      <div>
+                        <div className="account-label">{a.label}</div>
+                        {(a.iban || a.manualAt) && (
+                          <div className="account-iban">
+                            {maskIban(a.iban)}
+                            {a.manualAt && <>{a.iban ? ", " : ""}saldo manuale del {when(a.manualAt)}</>}
+                          </div>
+                        )}
+                      </div>
+                      {a.amount !== null ? (
+                        <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
+                      ) : (
+                        <div className="err">{a.error}</div>
+                      )}
+                    </div>
+                  ))}
+                </Link>
+                <form method="post" action="/api/eb/disconnect" className="group-foot">
+                  <input type="hidden" name="sessionId" value={b.sessionId} />
+                  <button className="btn btn-ghost danger" type="submit">Scollega {b.bank}</button>
+                </form>
+              </section>
+            );
+          })}
+
+          {manualAccounts.length > 0 && (
+            <section className="card bank">
+              <div className="bank-head">
+                <div>
+                  <div className="bank-name">Conti manuali</div>
+                  <div className="bank-meta">Saldi che aggiorni tu</div>
+                </div>
+              </div>
+              {manualAccounts.map((a) => (
+                <div key={a.id} className="account">
+                  <div>
+                    <div className="account-label">{a.name}</div>
+                    <div className="account-iban">Aggiornato {when(a.updatedAt)}</div>
+                  </div>
+                  <div>
+                    <div className={`amount${a.amount < 0 ? " neg" : ""}`} style={{ textAlign: "right" }}>{fmt(a.amount, a.currency)}</div>
+                    <QuickEdit kind="manual" id={a.id} value={a.amount} />
+                  </div>
+                </div>
+              ))}
+              <div className="group-foot">
+                <Link className="btn btn-ghost" href="/conti">Gestisci conti</Link>
+              </div>
+            </section>
           )}
 
           {(holdings.length > 0 || portfolioError) && (
             <section className="card bank">
               <div className="bank-head">
                 <div>
-                  <div className="bank-name">Portafoglio Trade Republic</div>
-                  <div className="bank-meta">Prezzi di mercato, aggiornati ogni 15 minuti</div>
+                  <div className="bank-name">Portafoglio</div>
+                  <div className="bank-meta">ETF, oro e crypto a prezzi di mercato</div>
                 </div>
                 <div className="bank-sum">{fmt(holdingsValue, "EUR")}</div>
               </div>
@@ -159,19 +271,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   <div>
                     <div className="account-label">{h.name}</div>
                     <div className="account-iban">
-                      {new Intl.NumberFormat("it-IT", { maximumFractionDigits: 4 }).format(h.qty)} quote
-                      {h.price !== null && <> × {fmt(h.price, "EUR")}{h.priceSource === "manuale" ? " (manuale)" : ""}</>}
+                      {new Intl.NumberFormat("it-IT", { maximumFractionDigits: 6 }).format(h.qty)} quote
+                      {h.price !== null && <> a {fmt(h.price, "EUR")}{h.priceSource === "manuale" ? " (manuale)" : ""}</>}
                     </div>
                   </div>
-                  {h.value !== null ? (
-                    <div className="amount">{fmt(h.value, "EUR")}</div>
-                  ) : (
-                    <div className="err">{h.error}</div>
-                  )}
+                  {h.value !== null ? <div className="amount">{fmt(h.value, "EUR")}</div> : <div className="err">{h.error}</div>}
                 </div>
               ))}
-              <div style={{ textAlign: "right", marginTop: 8 }}>
-                <Link className="btn btn-ghost" href="/portfolio">Modifica</Link>
+              <div className="group-foot">
+                <Link className="btn btn-ghost" href="/portfolio">Apri portafoglio</Link>
               </div>
             </section>
           )}
@@ -181,7 +289,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <div className="bank-head">
                 <div>
                   <div className="bank-name">Buoni fruttiferi postali</div>
-                  <div className="bank-meta">Valori netti, inseriti a mano o stimati dal tasso</div>
+                  <div className="bank-meta">Valori netti</div>
                 </div>
                 <div className="bank-sum">{fmt(bondsValue, "EUR")}</div>
               </div>
@@ -193,15 +301,15 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                       {b.matured && <span className="badge">scaduto</span>}
                     </div>
                     <div className="account-iban">
-                      {fmt(b.capital, "EUR")} sottoscritti il {new Date(`${b.subscribedAt}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" })}
-                      {b.valueSource === "stima" ? " (stima)" : b.valueSource === "nominale" ? " (nominale)" : ""}
+                      {fmt(b.capital, "EUR")} dal {new Date(`${b.subscribedAt}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" })}
+                      {b.valueSource === "stima" ? ", valore stimato" : b.valueSource === "nominale" ? ", valore nominale" : ""}
                     </div>
                   </div>
                   <div className="amount">{fmt(b.value, "EUR")}</div>
                 </div>
               ))}
-              <div style={{ textAlign: "right", marginTop: 8 }}>
-                <Link className="btn btn-ghost" href="/buoni">Modifica</Link>
+              <div className="group-foot">
+                <Link className="btn btn-ghost" href="/buoni">Gestisci buoni</Link>
               </div>
             </section>
           )}
@@ -211,7 +319,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <div className="bank-head">
                 <div>
                   <div className="bank-name">Carte di credito</div>
-                  <div className="bank-meta">Speso da addebitare, inserito a mano</div>
+                  <div className="bank-meta">Speso da addebitare</div>
                 </div>
                 <div className={`bank-sum${cardsDebt > 0 ? " neg" : ""}`}>{fmt(-cardsDebt, "EUR")}</div>
               </div>
@@ -221,7 +329,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                     <div className="account-label">{c.name}</div>
                     <div className="account-iban">
                       {c.last4 && <>•••• {c.last4}</>}
-                      {c.nextCharge && <>{c.last4 ? " · " : ""}addebito il {new Date(`${c.nextCharge}T00:00:00Z`).toLocaleDateString("it-IT", { timeZone: "UTC" })}</>}
+                      {c.nextCharge && <>{c.last4 ? ", " : ""}addebito il {shortDate(c.nextCharge)}</>}
                     </div>
                   </div>
                   <div>
@@ -231,86 +339,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   </div>
                 </div>
               ))}
-              <div style={{ textAlign: "right", marginTop: 8 }}>
-                <Link className="btn btn-ghost" href="/carte">Modifica</Link>
+              <div className="group-foot">
+                <Link className="btn btn-ghost" href="/carte">Gestisci carte</Link>
               </div>
             </section>
           )}
-
-          {manualAccounts.length > 0 && (
-            <section className="card bank">
-              <div className="bank-head">
-                <div>
-                  <div className="bank-name">Conti manuali</div>
-                  <div className="bank-meta">Saldi inseriti a mano</div>
-                </div>
-              </div>
-              {manualAccounts.map((a) => (
-                <div key={a.id} className="account">
-                  <div>
-                    <div className="account-label">{a.name}</div>
-                    <div className="account-iban">aggiornato {when(a.updatedAt)}</div>
-                  </div>
-                  <div>
-                    <div className={`amount${a.amount < 0 ? " neg" : ""}`} style={{ textAlign: "right" }}>{fmt(a.amount, a.currency)}</div>
-                    <QuickEdit kind="manual" id={a.id} value={a.amount} />
-                  </div>
-                </div>
-              ))}
-              <div style={{ textAlign: "right", marginTop: 8 }}>
-                <Link className="btn btn-ghost" href="/conti">Modifica</Link>
-              </div>
-            </section>
-          )}
-
-          {banks.map((b) => {
-            const sums = new Map<string, number>();
-            for (const a of b.accounts) if (a.amount !== null) sums.set(a.currency, (sums.get(a.currency) ?? 0) + a.amount);
-            return (
-              <section key={b.sessionId} className="card bank clickable">
-                <Link href={`/banca/${b.sessionId}`} className="bank-link">
-                <div className="bank-head">
-                  <div>
-                    <div className="bank-name">
-                      {b.bank}
-                      {b.expired ? <span className="badge">scaduto</span> : b.daysLeft <= 14 ? <span className="badge">scade tra {b.daysLeft} gg</span> : null}
-                    </div>
-                    <div className="bank-meta">
-                      Consenso fino al {new Date(b.validUntil).toLocaleDateString("it-IT")} · letto {when(b.fetchedAt)} · tocca per modificare
-                    </div>
-                  </div>
-                  <div className="bank-sum">
-                    {[...sums.entries()].map(([c, v]) => <div key={c}>{fmt(v, c)}</div>)}
-                  </div>
-                </div>
-
-                {b.accounts.map((a) => (
-                  <div key={a.uid} className="account">
-                    <div>
-                      <div className="account-label">{a.label}</div>
-                      {(a.iban || a.manualAt) && (
-                        <div className="account-iban">
-                          {maskIban(a.iban)}
-                          {a.manualAt && <>{a.iban ? " · " : ""}manuale {when(a.manualAt)}</>}
-                        </div>
-                      )}
-                    </div>
-                    {a.amount !== null ? (
-                      <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
-                    ) : (
-                      <div className="err">{a.error}</div>
-                    )}
-                  </div>
-                ))}
-                </Link>
-
-                <form method="post" action="/api/eb/disconnect" style={{ textAlign: "right", marginTop: 8 }}>
-                  <input type="hidden" name="sessionId" value={b.sessionId} />
-                  <button className="btn btn-ghost" type="submit">Scollega</button>
-                </form>
-              </section>
-            );
-          })}
         </>
       )}
     </main>

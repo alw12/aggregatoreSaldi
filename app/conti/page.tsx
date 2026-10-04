@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { Nav } from "@/app/nav";
 import { listManualAccounts, type ManualAccount } from "@/lib/manual";
 
 export const dynamic = "force-dynamic";
 
-const fmt = (n: number, currency: string) => new Intl.NumberFormat("it-IT", { style: "currency", currency }).format(n);
+const fmt = (n: number, currency: string) => new Intl.NumberFormat("it-IT", { style: "currency", currency, useGrouping: "always" }).format(n);
 const when = (iso: string) =>
   new Intl.DateTimeFormat("it-IT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Rome" }).format(new Date(iso));
 
@@ -23,15 +24,13 @@ export default async function ManualAccountsPage({ searchParams }: PageProps<"/c
 
   return (
     <main className="container">
-      <header className="topbar">
-        <h1>Conti manuali</h1>
-        <Link className="btn" href="/">← Dashboard</Link>
-      </header>
+      <Nav current="/conti" />
+      <h1 className="page-title">Conti manuali</h1>
 
       {error && <div className="notice error">{error}</div>}
       {loadError && <div className="notice error">{loadError}</div>}
 
-      <section className="card" style={{ marginBottom: 16 }}>
+      <section className="card bank">
         <div className="bank-head">
           <div className="bank-name">Conti</div>
         </div>
@@ -40,7 +39,7 @@ export default async function ManualAccountsPage({ searchParams }: PageProps<"/c
           <div key={a.id} className="account">
             <div>
               <div className="account-label">{a.name}</div>
-              <div className="account-iban">aggiornato {when(a.updatedAt)}</div>
+              <div className="account-iban">Aggiornato {when(a.updatedAt)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
@@ -48,7 +47,7 @@ export default async function ManualAccountsPage({ searchParams }: PageProps<"/c
               <form method="post" action="/api/accounts" style={{ display: "inline" }}>
                 <input type="hidden" name="action" value="delete" />
                 <input type="hidden" name="id" value={a.id} />
-                <button className="btn btn-ghost" type="submit">Elimina</button>
+                <button className="btn btn-ghost danger" type="submit">Elimina</button>
               </form>
             </div>
           </div>
@@ -56,15 +55,15 @@ export default async function ManualAccountsPage({ searchParams }: PageProps<"/c
       </section>
 
       <form key={editing?.id ?? "new"} className="card form-grid" method="post" action="/api/accounts">
-        <div className="bank-name" style={{ marginBottom: 4 }}>{editing ? `Modifica ${editing.name}` : "Aggiungi conto"}</div>
-        <p className="bank-meta" style={{ margin: "0 0 8px" }}>
+        <div className="form-title">{editing ? `Modifica ${editing.name}` : "Aggiungi conto"}</div>
+        <p className="form-hint">
           Per conti che non si collegano via open banking (contanti, banche non supportate). Il saldo entra nella
           liquidità; poi puoi aggiornarlo al volo dalla dashboard.
         </p>
         {editing && <input type="hidden" name="id" value={editing.id} />}
         <label>
           Nome
-          <input name="name" required placeholder="es. Contanti · Conto Fineco" defaultValue={editing?.name} />
+          <input name="name" required placeholder="es. Contanti" defaultValue={editing?.name} />
         </label>
         <label>
           Saldo
