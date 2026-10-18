@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { averageMonth, classify, monthlyFlows, topSpending, type Movement } from "@/lib/flows";
+import { averageMonth, classify, monthlyFlows, ownPattern, topSpending, type Movement } from "@/lib/flows";
 
 const mv = (date: string, amount: number, party: string, kind = classify(amount, party, null, new Set())): Movement => ({
   id: `${date}${party}${amount}`, date, amount, currency: "EUR", party, account: "Banca, Conto", kind,
@@ -44,5 +44,22 @@ describe("movimenti", () => {
       { party: "Bar", total: 25, count: 2 },
       { party: "Esselunga", total: 20, count: 1 },
     ]);
+  });
+});
+
+describe("propri conti riconosciuti dal testo", () => {
+  const banks = ["BancoPosta", "BBVA", "Revolut"];
+  const labels = ["Conto Corrente BancoPosta", "CONTO BBVA", "Mario Rossi"];
+  it("ricarica Revolut da BancoPosta e bonifico a sé stessi sono giroconti", () => {
+    const own = ownPattern("BancoPosta", banks, labels);
+    expect(classify(-300, "PAGAMENTO POS Revolut**1640* 10/10/2026", null, new Set(), own)).toBe("internal");
+    expect(classify(-100, "Bonifico a Mario Rossi", null, new Set(), own)).toBe("internal");
+    expect(classify(-40, "Esselunga", null, new Set(), own)).toBe("out");
+  });
+  it("da Revolut, i soldi arrivati da Poste sono giroconti", () => {
+    const own = ownPattern("Revolut", banks, labels);
+    expect(classify(300, "Top-up by *1234", null, new Set(), own)).toBe("internal");
+    expect(classify(300, "Poste Italiane", null, new Set(), own)).toBe("internal");
+    expect(classify(1500, "Stipendio ACME", null, new Set(), own)).toBe("in");
   });
 });

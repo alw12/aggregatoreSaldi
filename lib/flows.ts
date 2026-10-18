@@ -9,6 +9,7 @@ export type Movement = {
   currency: string;
   party: string; // controparte o descrizione
   account: string; // "Banca, conto"
+  counterIban?: string | null;
   kind: Kind;
 };
 
@@ -16,8 +17,15 @@ export type Movement = {
 const INVEST =
   /scalable|trade ?republic|directa|degiro|fineco.*titoli|moneyfarm|revolut.*(invest|stock)|buon[oi] frutt|\bbfp\b|fondo pensione|cometa|fonte\b|investiment|risparmio|salvadanaio|\bvault\b|\bpocket\b|round.?up/i;
 
-export function classify(amount: number, party: string, counterIban: string | null, ownIbans: Set<string>): Kind {
+const TRANSFER = /giroconto|ricarica|top.?up|trasferimento tra/i;
+
+/**
+ * `own` riconosce i propri conti dal testo: nomi delle altre banche collegate (la ricarica Revolut da
+ * BancoPosta appare come "PAGAMENTO POS Revolut**1640") e il nome dell'intestatario.
+ */
+export function classify(amount: number, party: string, counterIban: string | null, ownIbans: Set<string>, own?: RegExp | null): Kind {
   if (counterIban && ownIbans.has(counterIban.replace(/\s/g, "").toUpperCase())) return "internal";
+  if (TRANSFER.test(party) || own?.test(party)) return "internal";
   if (amount < 0 && INVEST.test(party)) return "invest";
   return amount >= 0 ? "in" : "out";
 }
@@ -62,4 +70,21 @@ export function topSpending(moves: Movement[], since: string, n = 8): { party: s
     map.set(key, cur);
   }
   return [...map.values()].sort((a, b) => b.total - a.total).slice(0, n);
+}
+
+const escape = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const GENERIC = /conto|corrente|account|carta|card|deposito|risparmio|libretto|\d/i;
+
+/**
+ * Espressione per i movimenti verso i propri conti, vista da un conto della banca `bank`: i nomi delle
+ * altre banche collegate e le etichette che sono nomi di persona (Revolut usa l'intestatario come nome del conto).
+ */
+export function ownPattern(bank: string, banks: string[], labels: string[]): RegExp | null {
+  const firstWord = (b: string) => b.split(/[\s.]+/)[0];
+  const others = banks.filter((b) => b !== bank).map(firstWord).filter((w) => w.length >= 4);
+  // BancoPosta compare anche come "Poste"
+  if (banks.some((b) => b !== bank && /bancoposta|poste/i.test(b))) others.push("Poste", "BancoPosta");
+  const names = labels.filter((l) => /^\p{L}+(?: \p{L}+)+$/u.test(l.trim()) && !GENERIC.test(l)).map((l) => l.trim());
+  const terms = [...new Set([...others, ...names])].map(escape);
+  return terms.length ? new RegExp(`\\b(?:${terms.join("|")})`, "i") : null;
 }

@@ -1,7 +1,7 @@
 import "server-only";
 import { EbError, getTransactions, type PsuHeaders, type Transaction } from "./eb";
 import { listSessions, redis } from "./store";
-import { classify, type Movement } from "./flows";
+import { classify, ownPattern, type Movement } from "./flows";
 
 /** Movimenti di tutti i conti collegati, ultimi ~4 mesi, con cache di 6 ore (le banche limitano le letture). */
 
@@ -50,6 +50,8 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
   const r = redis();
   const sessions = (await listSessions()).filter((s) => new Date(s.validUntil).getTime() > Date.now());
   const ownIbans = new Set(sessions.flatMap((s) => s.accounts.map((a) => a.iban?.replace(/\s/g, "").toUpperCase())).filter((x): x is string => !!x));
+  const bankNames = sessions.map((s) => s.aspsp.name);
+  const labels = sessions.flatMap((s) => s.accounts.map((a) => a.label));
   const errors: string[] = [];
   const stamps: string[] = [];
 
@@ -58,9 +60,12 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
       s.accounts.map(async (a): Promise<Movement[]> => {
         const key = `saldi:tx:${a.uid}`;
         const cached = r ? await r.get<Cached>(key) : null;
+        const own = ownPattern(s.aspsp.name, bankNames, labels);
+        // La classificazione si rifà a ogni lettura: cambia se colleghi o scolleghi una banca
+        const reclassify = (moves: Movement[]) => moves.map((m) => ({ ...m, kind: classify(m.amount, m.party, m.counterIban ?? null, ownIbans, own) }));
         if (cached) {
           stamps.push(cached.fetchedAt);
-          return cached.moves;
+          return reclassify(cached.moves);
         }
         if (!psu) return [];
         try {
@@ -79,7 +84,8 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
                 currency: t.transaction_amount.currency,
                 party,
                 account,
-                kind: classify(amount, party, counterIban, ownIbans),
+                counterIban,
+                kind: classify(amount, party, counterIban, ownIbans, own),
               };
             });
           const value: Cached = { fetchedAt: new Date().toISOString(), moves };
