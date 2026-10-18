@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { after } from "next/server";
 import { loadDashboard, psuHeadersFrom, type BankView } from "@/lib/data";
 import { hasStore } from "@/lib/store";
-import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
+import { byAssetClass, loadPortfolio, type HoldingView } from "@/lib/portfolio";
 import { loadBonds, type BondView } from "@/lib/bonds";
 import { loadCards, type CreditCardView } from "@/lib/cards";
 import { listManualAccounts, type ManualAccount } from "@/lib/manual";
@@ -113,6 +113,10 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
   const { holdings, error: portfolioError } = portfolio;
   const holdingsValue = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
+  const withCost = holdings.filter((h) => h.gain !== null);
+  const holdingsCost = withCost.reduce((sum, h) => sum + (h.cost ?? 0), 0);
+  const holdingsGain = withCost.reduce((sum, h) => sum + (h.gain ?? 0), 0);
+  const classes = byAssetClass(holdings);
   const bondsValue = bonds.reduce((sum, b) => sum + b.value, 0);
   const invested = holdingsValue + bondsValue;
   const cardsDebt = cards.reduce((sum, c) => sum + c.balance, 0);
@@ -311,9 +315,23 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               <div className="bank-head">
                 <div>
                   <div className="bank-name">Portafoglio</div>
-                  <div className="bank-meta">ETF, oro e crypto a prezzi di mercato</div>
+                  <div className="bank-meta">
+                    {classes.length > 1 && holdingsValue > 0
+                      ? classes
+                          .map((c) => `${c.label} ${new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 0 }).format(c.value / holdingsValue)}`)
+                          .join(", ")
+                      : "ETF, oro e crypto a prezzi di mercato"}
+                  </div>
                 </div>
-                <div className="bank-sum">{fmt(holdingsValue, "EUR")}</div>
+                <div style={{ textAlign: "right" }}>
+                  <div className="bank-sum">{fmt(holdingsValue, "EUR")}</div>
+                  {holdingsCost > 0 && (
+                    <div className={`gain ${holdingsGain >= 0 ? "up" : "down"}`}>
+                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", signDisplay: "always" }).format(holdingsGain)}
+                      {withCost.length < holdings.length ? " (su parte)" : ""}
+                    </div>
+                  )}
+                </div>
               </div>
               {portfolioError && <div className="err" style={{ textAlign: "left" }}>{portfolioError}</div>}
               {holdings.map((h) => (

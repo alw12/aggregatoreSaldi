@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_COOKIE, verifyAuthToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/login"];
+// /api/portfolio/sync si autentica da sé con SYNC_TOKEN
+const PUBLIC_PATHS = ["/login", "/api/login", "/api/portfolio/sync"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

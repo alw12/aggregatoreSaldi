@@ -6,6 +6,17 @@ export type Broker = (typeof BROKERS)[number];
 export const DEFAULT_BROKER: Broker = "Trade Republic";
 export const isBroker = (v: unknown): v is Broker => BROKERS.includes(v as Broker);
 
+export const ASSET_CLASSES = {
+  azioni: "Azioni",
+  obbligazioni: "Obbligazioni",
+  oro: "Oro",
+  materie: "Materie prime",
+  crypto: "Crypto",
+  altro: "Altro",
+} as const;
+export type AssetClass = keyof typeof ASSET_CLASSES;
+export const isAssetClass = (v: unknown): v is AssetClass => typeof v === "string" && v in ASSET_CLASSES;
+
 /** Una posizione del portafoglio (es. un ETF su Trade Republic). */
 export type Holding = {
   id: string; // ISIN o simbolo inserito dall'utente, in maiuscolo
@@ -14,6 +25,8 @@ export type Holding = {
   name: string;
   qty: number;
   manualPrice: number | null; // prezzo di riserva in EUR se Yahoo non risponde
+  avgCost?: number | null; // prezzo medio di carico in EUR per quota; assente nelle posizioni più vecchie
+  assetClass?: AssetClass | null; // null = dedotto dal nome
   updatedAt: string;
 };
 
@@ -22,6 +35,9 @@ export type HoldingView = Holding & {
   value: number | null; // EUR
   priceSource: "live" | "manuale" | null;
   priceTime: string | null;
+  cls: AssetClass; // tipo effettivo: quello scelto o quello dedotto
+  cost: number | null; // EUR investiti (prezzo medio × quote)
+  gain: number | null; // EUR, valore − costo
   error?: string;
 };
 
@@ -44,13 +60,28 @@ const CRYPTO: Record<string, { id: string; name: string }> = {
 };
 const cryptoFor = (id: string) => CRYPTO[id] ?? CRYPTO[`${id}-EUR`];
 
+/** Tipo dedotto da simbolo e nome: basta per ETF/ETC comuni, altrimenti si sceglie nel form. */
+export function inferAssetClass(h: Pick<Holding, "id" | "name">): AssetClass {
+  const n = h.name.toLowerCase();
+  if (cryptoFor(h.id) || /bitcoin|ethereum|solana|crypto|\bbtc\b|\beth\b/.test(n)) return "crypto";
+  if (/\bgold\b|\boro\b/.test(n)) return "oro";
+  if (/commodit|materie prime|silver|argento|oil|petrolio/.test(n)) return "materie";
+  if (/bond|treasury|govt|government|aggregate|obbligaz|corporate|\bbtp\b/.test(n)) return "obbligazioni";
+  return "azioni";
+}
+
 // Borse preferite per ETF europei quotati in EUR
 const SUFFIX_PREF = [".DE", ".MI", ".AS", ".PA", ".F", ".SG", ".MU", ".DU", ".BE", ".HM", ".VI"];
 
 /** Campo Redis: l'ISIN da solo per Trade Republic (come le posizioni già salvate), "broker|ISIN" per gli altri. */
 export const holdingKey = (broker: Broker, id: string) => (broker === DEFAULT_BROKER ? id : `${broker}|${id}`);
 
-const withBroker = (h: Holding): Holding => ({ ...h, broker: isBroker(h.broker) ? h.broker : DEFAULT_BROKER });
+const withBroker = (h: Holding): Holding => ({
+  ...h,
+  broker: isBroker(h.broker) ? h.broker : DEFAULT_BROKER,
+  avgCost: h.avgCost ?? null,
+  assetClass: isAssetClass(h.assetClass) ? h.assetClass : null,
+});
 
 export async function listHoldings(): Promise<Holding[]> {
   const r = redis();
@@ -71,6 +102,40 @@ export async function removeHolding(broker: Broker, id: string): Promise<void> {
   const r = redis();
   if (!r) return;
   await r.hdel(KEY, holdingKey(broker, id));
+}
+
+export type SyncPosition = { id: string; name?: string; qty: number; avgCost?: number | null; price?: number | null };
+
+/**
+ * Sostituisce tutte le posizioni di un broker con quelle ricevute (le vendute spariscono).
+ * Mantiene simbolo Yahoo, nome personalizzato e tipo già salvati per gli ISIN che restano.
+ */
+export async function syncBroker(broker: Broker, positions: SyncPosition[]): Promise<{ saved: number; removed: number }> {
+  const r = redis();
+  if (!r) throw new Error("Storage non configurato");
+  const current = (await listHoldings()).filter((h) => h.broker === broker);
+  const now = new Date().toISOString();
+  const next: Record<string, Holding> = {};
+  for (const p of positions) {
+    const id = p.id.trim().toUpperCase();
+    const prev = current.find((h) => h.id === id);
+    const symbol = prev?.symbol ?? (await resolveSymbol(id).then((x) => x.symbol, () => null));
+    next[holdingKey(broker, id)] = {
+      id,
+      broker,
+      symbol,
+      name: prev?.name ?? p.name ?? id,
+      qty: p.qty,
+      manualPrice: p.price ?? prev?.manualPrice ?? null,
+      avgCost: p.avgCost ?? prev?.avgCost ?? null,
+      assetClass: prev?.assetClass ?? null,
+      updatedAt: now,
+    };
+  }
+  const gone = current.map((h) => holdingKey(broker, h.id)).filter((k) => !(k in next));
+  if (gone.length) await r.hdel(KEY, ...gone);
+  if (Object.keys(next).length) await r.hset(KEY, next);
+  return { saved: Object.keys(next).length, removed: gone.length };
 }
 
 export async function getHolding(broker: Broker, id: string): Promise<Holding | null> {
@@ -227,7 +292,7 @@ async function fallbackPriceEur(id: string): Promise<{ price: number; time: stri
 }
 
 /** Yahoo se c'è un simbolo, altrimenti (o se Yahoo fallisce) la fonte di riserva. */
-async function livePrice(h: Holding): Promise<{ price: number; time: string }> {
+async function fetchLivePrice(h: Holding): Promise<{ price: number; time: string }> {
   if (h.symbol) {
     try {
       return await priceEur(h.symbol);
@@ -246,20 +311,69 @@ export async function clearPriceCache(): Promise<void> {
   if (keys.length) await r.del(...keys);
 }
 
+function view(h: Holding, price: number | null, rest: Pick<HoldingView, "priceSource" | "priceTime" | "error">): HoldingView {
+  const value = price === null ? null : price * h.qty;
+  const cost = h.avgCost ? h.avgCost * h.qty : null;
+  return {
+    ...h,
+    ...rest,
+    price,
+    value,
+    cls: h.assetClass ?? inferAssetClass(h),
+    cost,
+    gain: value !== null && cost !== null ? value - cost : null,
+  };
+}
+
 export async function loadPortfolio(): Promise<HoldingView[]> {
   const holdings = await listHoldings();
+  // Lo stesso strumento su più broker: una sola richiesta di prezzo, anche a cache vuota
+  const inflight = new Map<string, Promise<{ price: number; time: string }>>();
+  const livePrice = (h: Holding) => {
+    const key = h.symbol ?? h.id;
+    let p = inflight.get(key);
+    if (!p) inflight.set(key, (p = fetchLivePrice(h)));
+    return p;
+  };
   return Promise.all(
     holdings.map(async (h): Promise<HoldingView> => {
       try {
         const { price, time } = await livePrice(h);
-        return { ...h, price, value: price * h.qty, priceSource: "live", priceTime: time };
+        return view(h, price, { priceSource: "live", priceTime: time });
       } catch (e) {
         const error = e instanceof Error ? e.message : String(e);
-        if (h.manualPrice !== null) {
-          return { ...h, price: h.manualPrice, value: h.manualPrice * h.qty, priceSource: "manuale", priceTime: h.updatedAt, error };
-        }
-        return { ...h, price: null, value: null, priceSource: null, priceTime: null, error };
+        if (h.manualPrice !== null) return view(h, h.manualPrice, { priceSource: "manuale", priceTime: h.updatedAt, error });
+        return view(h, null, { priceSource: null, priceTime: null, error });
       }
     }),
   );
+}
+
+export type InstrumentView = { id: string; name: string; brokers: Broker[]; qty: number; value: number; cost: number | null; gain: number | null };
+
+/** Somma per ISIN/simbolo le posizioni tenute su più broker. */
+export function byInstrument(holdings: HoldingView[]): InstrumentView[] {
+  const map = new Map<string, InstrumentView & { costKnown: boolean }>();
+  for (const h of holdings) {
+    const cur = map.get(h.id) ?? { id: h.id, name: h.name, brokers: [], qty: 0, value: 0, cost: 0, gain: null, costKnown: true };
+    cur.brokers.push(h.broker);
+    cur.qty += h.qty;
+    cur.value += h.value ?? 0;
+    if (h.cost === null) cur.costKnown = false;
+    else cur.cost = (cur.cost ?? 0) + h.cost;
+    map.set(h.id, cur);
+  }
+  return [...map.values()]
+    .map(({ costKnown, ...i }) => (costKnown ? { ...i, gain: i.value - (i.cost ?? 0) } : { ...i, cost: null, gain: null }))
+    .sort((a, b) => b.value - a.value);
+}
+
+/** Valore per tipo di investimento, dal più grande. */
+export function byAssetClass(holdings: HoldingView[]): { cls: AssetClass; label: string; value: number }[] {
+  const sums = new Map<AssetClass, number>();
+  for (const h of holdings) sums.set(h.cls, (sums.get(h.cls) ?? 0) + (h.value ?? 0));
+  return [...sums.entries()]
+    .map(([cls, value]) => ({ cls, label: ASSET_CLASSES[cls], value }))
+    .filter((x) => x.value > 0)
+    .sort((a, b) => b.value - a.value);
 }

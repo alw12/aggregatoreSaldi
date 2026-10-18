@@ -139,6 +139,9 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .account-iban { color: var(--muted); font-size: 13px; margin-top: 1px; }
 .amount { font-weight: 500; white-space: nowrap; }
 .amount.neg, .bank-sum.neg { color: var(--negative); }
+.gain { font-size: 13px; font-weight: 500; white-space: nowrap; margin-top: 1px; }
+.gain.up { color: var(--accent); }
+.gain.down { color: var(--negative); }
 .err { color: var(--negative); font-size: 13px; text-align: right; }
 
 .group-foot { display: flex; justify-content: flex-end; gap: 4px; margin-top: 8px; }

@@ -1,8 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Hanken_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const sans = Hanken_Grotesk({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+// Font nel repo (OFL, sottoinsieme latin): la build non dipende da Google Fonts
+const sans = localFont({ src: "./fonts/HankenGrotesk-Variable.woff2", weight: "100 900", variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
   title: "Saldi",

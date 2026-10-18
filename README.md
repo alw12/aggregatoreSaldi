@@ -8,6 +8,8 @@ Next.js 16 · deploy su Vercel · protetta da password · storage su Upstash Red
 - **Login**: password unica (`APP_PASSWORD`), cookie `httpOnly` firmato (HS256, 7 giorni). Il `proxy.ts` blocca ogni pagina e API senza cookie valido.
 - **Collegamento banca**: `/connect` → Enable Banking → SCA sulla tua banca → `/api/eb/callback` salva la sessione (id, conti, scadenza consenso) su Redis.
 - **Saldi**: la dashboard legge `/accounts/{uid}/balances` per ogni conto, con header PSU (utente presente, quindi niente limite di 4 letture/giorno), e tiene i saldi in cache per 30 minuti. "Aggiorna" svuota la cache.
+- **Portafoglio**: posizioni per broker (Trade Republic, Scalable Capital) a prezzi live Yahoo, con riserva justETF/CoinGecko. Con il prezzo medio di carico mostra guadagno e perdita; somma lo stesso ISIN tenuto su più broker e divide per tipo (azioni, oro, materie prime, crypto…).
+- **Sincronizzazione Scalable**: una routine Claude settimanale legge le posizioni dal connettore Scalable e le invia a `POST /api/portfolio/sync` con `Authorization: Bearer $SYNC_TOKEN`. Body `{ "broker": "Scalable Capital", "positions": [{ "id": "ISIN", "name": "…", "qty": 1.23, "avgCost": 98.4, "price": 101.2 }] }`: sostituisce tutte le posizioni di quel broker.
 - **Consenso**: dura al massimo quanto consente la banca (di solito 180 giorni). Da 14 giorni prima della scadenza compare un avviso; per rinnovare basta ricollegare la banca.
 
 ## Setup
@@ -28,6 +30,7 @@ Next.js 16 · deploy su Vercel · protetta da password · storage su Upstash Red
    - `AUTH_SECRET`: `openssl rand -base64 48`
    - `EB_APP_ID`: Application ID
    - `EB_PRIVATE_KEY`: `base64 -w0 chiave.pem` (Linux) / `base64 -i chiave.pem` (macOS)
+   - `SYNC_TOKEN` (facoltativo): `openssl rand -hex 32`, per la sincronizzazione automatica del portafoglio
 4. Deploy, apri il sito, fai login, **+ Banca** e collega ogni banca.
 
 ### Locale

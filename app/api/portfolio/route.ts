@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { DEFAULT_BROKER, getHolding, isBroker, removeHolding, resolveSymbol, saveHolding } from "@/lib/portfolio";
+import { DEFAULT_BROKER, getHolding, isAssetClass, isBroker, removeHolding, resolveSymbol, saveHolding } from "@/lib/portfolio";
 import { parseNumber } from "@/lib/parse";
 
 function back(request: NextRequest, params: Record<string, string> = {}) {
@@ -24,8 +24,11 @@ export async function POST(request: NextRequest) {
 
   const qty = parseNumber(form.get("qty"));
   const manualPrice = parseNumber(form.get("manualPrice"));
+  const avgCost = parseNumber(form.get("avgCost"));
+  const assetClassField = form.get("assetClass");
   if (qty === null || Number.isNaN(qty) || qty < 0) return back(request, { error: "Quantità non valida", broker });
   if (Number.isNaN(manualPrice)) return back(request, { error: "Prezzo manuale non valido", broker });
+  if (Number.isNaN(avgCost) || (avgCost !== null && avgCost < 0)) return back(request, { error: "Prezzo medio di carico non valido", broker });
 
   const existing = await getHolding(broker, id);
   let symbol = existing?.symbol ?? null;
@@ -53,6 +56,9 @@ export async function POST(request: NextRequest) {
     name: label || name,
     qty,
     manualPrice,
+    // Campo vuoto = tieni quello già salvato (es. arrivato dalla sincronizzazione)
+    avgCost: avgCost ?? existing?.avgCost ?? null,
+    assetClass: isAssetClass(assetClassField) ? assetClassField : null,
     updatedAt: new Date().toISOString(),
   });
   return back(request, warning ? { warning, broker } : { ok: id, broker });
