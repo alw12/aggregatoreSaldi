@@ -14,6 +14,7 @@ export type Facts = {
   cryptoValue: number;
   bondRate: number | null; // tasso lordo medio dei buoni, %
   nextDebt: { name: string; amount: number; dueDate: string } | null;
+  consumerDebt: number; // parte dei debiti verso finanziarie (prestiti al consumo)
   overlaps: { index: string; names: string[] }[];
   sameOnBrokers: string[];
   brokers: number;
@@ -195,9 +196,21 @@ function Steps({ facts: f, spese }: { facts: Facts; spese: number }) {
       body: (
         <>
           Devi <strong>{eur(f.debts)}</strong>
-          {liquid > 0 && <>, il {pct(f.debts / liquid)} di liquidità e investimenti messi insieme</>}. Se un debito ha interessi,
-          restituirlo rende esattamente quel tasso, garantito: di solito batte qualsiasi investimento. Se è senza interessi (per esempio
-          con un familiare), rispetta le scadenze e intanto continua a investire.
+          {liquid > 0 && <>, il {pct(f.debts / liquid)} di liquidità e investimenti messi insieme</>}.{" "}
+          {f.consumerDebt > 0 ? (
+            <>
+              {f.consumerDebt === f.debts ? "È un prestito al consumo" : `${eur(f.consumerDebt)} sono prestiti al consumo`}: guarda il <strong>TAEG</strong> sul
+              contratto. Ogni euro restituito in anticipo rende esattamente quel tasso, garantito e senza rischio: se supera il 5% batte
+              quello che puoi aspettarti dagli ETF. Per legge (art. 125-sexies TUB) l’estinzione anticipata costa al massimo l’1% del
+              capitale restituito (0,5% se manca meno di un anno), e niente se estingui tutto con un residuo fino a 10.000 €. Prima
+              tieni da parte il fondo di emergenza, poi usa i soldi in più per ridurlo.
+            </>
+          ) : (
+            <>
+              Se un debito ha interessi, restituirlo rende esattamente quel tasso, garantito: di solito batte qualsiasi investimento. Se
+              è senza interessi (per esempio con un familiare), rispetta le scadenze e intanto continua a investire.
+            </>
+          )}
           {f.nextDebt && <> Prossima scadenza: <strong>{f.nextDebt.name}</strong>, {eur(f.nextDebt.amount)} entro il {date(f.nextDebt.dueDate)}.</>}
         </>
       ),

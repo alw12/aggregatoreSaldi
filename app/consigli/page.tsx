@@ -18,6 +18,9 @@ const INDEXES: [RegExp, string][] = [
   [/\bgold\b|\boro\b/i, "oro fisico"],
 ];
 
+/** Finanziarie e banche di credito al consumo riconoscibili dal nome del debito. */
+const CONSUMER_LENDERS = /compass|findomestic|agos|cofidis|younited|fiditalia|santander consumer|deutsche bank easy|ibl|pitagora|prestito personale|finanziamento/i;
+
 function facts(o: Overview): Facts {
   const t = o.totals;
   const instruments = byInstrument(o.holdings);
@@ -42,6 +45,7 @@ function facts(o: Overview): Facts {
         .filter((d) => d.dueDate && d.dueDate >= today)
         .sort((a, b) => (a.dueDate ?? "").localeCompare(b.dueDate ?? ""))
         .map((d) => ({ name: d.name, amount: d.amount, dueDate: d.dueDate as string }))[0] ?? null,
+    consumerDebt: o.debts.filter((d) => CONSUMER_LENDERS.test(d.name)).reduce((s, d) => s + d.amount, 0),
     overlaps,
     sameOnBrokers: instruments.filter((i) => i.brokers.length > 1).map((i) => i.name),
     brokers: new Set(o.holdings.map((h) => h.broker)).size,
