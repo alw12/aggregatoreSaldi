@@ -22,7 +22,7 @@ const H = 180;
 const PAD = { top: 12, right: 12, bottom: 24, left: 56 };
 
 /** Andamento nel tempo: linea + crosshair e tooltip al passaggio (mouse, tocco o tastiera). */
-export function TrendChart({ points, unit = "eur", label, slot = 1 }: { points: Point[]; unit?: Unit; label: string; slot?: 1 | 2 }) {
+export function TrendChart({ points, unit = "eur", label, slot = 1 }: { points: Point[]; unit?: Unit; label: string; slot?: 1 | 2 | 3 | 4 | "debt" }) {
   const eur = (n: number) => FORMAT[unit].tick.format(n);
   const eurFull = (n: number) => FORMAT[unit].full.format(n);
   const ref = useRef<HTMLDivElement>(null);

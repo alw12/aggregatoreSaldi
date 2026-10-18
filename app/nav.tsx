@@ -2,12 +2,14 @@ import Link from "next/link";
 
 const SECTIONS = [
   { href: "/", label: "Panoramica" },
+  { href: "/grafici", label: "Grafici" },
   { href: "/portfolio", label: "Portafoglio" },
   { href: "/buoni", label: "Buoni" },
   { href: "/carte", label: "Carte" },
   { href: "/conti", label: "Conti" },
   { href: "/beni", label: "Beni" },
   { href: "/debiti", label: "Debiti" },
+  { href: "/consigli", label: "Milionario" },
 ] as const;
 
 /** Testata comune: marchio, sezioni (scorrevoli su telefono), aggiorna ed esci. */

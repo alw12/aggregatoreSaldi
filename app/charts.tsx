@@ -8,7 +8,8 @@
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 const pct = (n: number) => new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 1 }).format(n);
 
-export type Part = { key: string; label: string; value: number; slot: 1 | 2 | 3 };
+export type Slot = 1 | 2 | 3 | 4;
+export type Part = { key: string; label: string; value: number; slot: Slot };
 
 /** Composizione del patrimonio: una barra impilata + legenda con importi e percentuali. */
 export function AllocationBar({ parts }: { parts: Part[] }) {
@@ -43,14 +44,17 @@ export function AllocationBar({ parts }: { parts: Part[] }) {
 
 export type BarRow = { key: string; label: string; value: number };
 
-/** Barre orizzontali ordinate per valore, con l'importo scritto a fine barra. */
-export function HoldingBars({ rows, caption }: { rows: BarRow[]; caption: string }) {
+/**
+ * Barre orizzontali ordinate per valore, con l'importo scritto a fine barra.
+ * `slot` dà alle barre il colore della voce che rappresentano (es. 4 = beni); `debt` il rosso dei debiti.
+ */
+export function HoldingBars({ rows, caption, slot = 1, debt = false }: { rows: BarRow[]; caption: string; slot?: Slot; debt?: boolean }) {
   const sorted = rows.filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
   const max = sorted[0]?.value ?? 0;
   const total = sorted.reduce((s, r) => s + r.value, 0);
   if (max <= 0) return null;
   return (
-    <figure className="hbars">
+    <figure className={`hbars slot${slot}${debt ? " debt" : ""}`}>
       <figcaption className="chart-title">{caption}</figcaption>
       {sorted.map((r) => (
         <div key={r.key} className="hbar" title={`${r.label}: ${eur(r.value)} (${pct(r.value / total)})`}>
