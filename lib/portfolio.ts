@@ -1,9 +1,15 @@
 import "server-only";
 import { redis } from "./store";
 
+export const BROKERS = ["Trade Republic", "Scalable Capital"] as const;
+export type Broker = (typeof BROKERS)[number];
+export const DEFAULT_BROKER: Broker = "Trade Republic";
+export const isBroker = (v: unknown): v is Broker => BROKERS.includes(v as Broker);
+
 /** Una posizione del portafoglio (es. un ETF su Trade Republic). */
 export type Holding = {
   id: string; // ISIN o simbolo inserito dall'utente, in maiuscolo
+  broker: Broker; // assente nelle posizioni salvate prima di Scalable = Trade Republic
   symbol: string | null; // simbolo Yahoo Finance risolto (es. SPYI.DE); null = prezzo da justETF/CoinGecko
   name: string;
   qty: number;
@@ -41,29 +47,37 @@ const cryptoFor = (id: string) => CRYPTO[id] ?? CRYPTO[`${id}-EUR`];
 // Borse preferite per ETF europei quotati in EUR
 const SUFFIX_PREF = [".DE", ".MI", ".AS", ".PA", ".F", ".SG", ".MU", ".DU", ".BE", ".HM", ".VI"];
 
+/** Campo Redis: l'ISIN da solo per Trade Republic (come le posizioni già salvate), "broker|ISIN" per gli altri. */
+export const holdingKey = (broker: Broker, id: string) => (broker === DEFAULT_BROKER ? id : `${broker}|${id}`);
+
+const withBroker = (h: Holding): Holding => ({ ...h, broker: isBroker(h.broker) ? h.broker : DEFAULT_BROKER });
+
 export async function listHoldings(): Promise<Holding[]> {
   const r = redis();
   if (!r) return [];
   const data = await r.hgetall<Record<string, Holding>>(KEY);
-  return Object.values(data ?? {}).sort((a, b) => a.name.localeCompare(b.name));
+  return Object.values(data ?? {})
+    .map(withBroker)
+    .sort((a, b) => BROKERS.indexOf(a.broker) - BROKERS.indexOf(b.broker) || a.name.localeCompare(b.name));
 }
 
 export async function saveHolding(h: Holding): Promise<void> {
   const r = redis();
   if (!r) throw new Error("Storage non configurato");
-  await r.hset(KEY, { [h.id]: h });
+  await r.hset(KEY, { [holdingKey(h.broker, h.id)]: h });
 }
 
-export async function removeHolding(id: string): Promise<void> {
+export async function removeHolding(broker: Broker, id: string): Promise<void> {
   const r = redis();
   if (!r) return;
-  await r.hdel(KEY, id);
+  await r.hdel(KEY, holdingKey(broker, id));
 }
 
-export async function getHolding(id: string): Promise<Holding | null> {
+export async function getHolding(broker: Broker, id: string): Promise<Holding | null> {
   const r = redis();
   if (!r) return null;
-  return (await r.hget<Holding>(KEY, id)) ?? null;
+  const h = await r.hget<Holding>(KEY, holdingKey(broker, id));
+  return h ? withBroker(h) : null;
 }
 
 async function yahoo<T>(url: string): Promise<T> {

@@ -317,12 +317,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               </div>
               {portfolioError && <div className="err" style={{ textAlign: "left" }}>{portfolioError}</div>}
               {holdings.map((h) => (
-                <div key={h.id} className="account">
+                <div key={`${h.broker}|${h.id}`} className="account">
                   <div>
                     <div className="account-label">{h.name}</div>
                     <div className="account-iban">
                       {new Intl.NumberFormat("it-IT", { maximumFractionDigits: 6 }).format(h.qty)} quote
                       {h.price !== null && <> a {fmt(h.price, "EUR")}{h.priceSource === "manuale" ? " (manuale)" : ""}</>}
+                      {new Set(holdings.map((x) => x.broker)).size > 1 && <>, {h.broker}</>}
                     </div>
                   </div>
                   {h.value !== null ? <div className="amount">{fmt(h.value, "EUR")}</div> : <div className="err">{h.error}</div>}

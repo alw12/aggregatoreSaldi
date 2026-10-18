@@ -44,5 +44,5 @@ npm run dev
 - Per revocare l'accesso: **Scollega** nella dashboard (chiude anche il consenso lato banca).
 
 ## Limiti
-- Trade Republic / Scalable: via PSD2 si vede solo la liquidità del conto, non il valore del portafoglio.
+- Trade Republic / Scalable: via PSD2 si vede solo la liquidità del conto; le posizioni (ETF, oro, crypto) si inseriscono in **Portafoglio**, scegliendo il broker, e vengono valorizzate a prezzi di mercato.
 - Alcune banche italiane richiedono di rifare la SCA periodicamente anche prima dei 180 giorni.

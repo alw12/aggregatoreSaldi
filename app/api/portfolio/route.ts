@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getHolding, removeHolding, resolveSymbol, saveHolding } from "@/lib/portfolio";
+import { DEFAULT_BROKER, getHolding, isBroker, removeHolding, resolveSymbol, saveHolding } from "@/lib/portfolio";
 import { parseNumber } from "@/lib/parse";
 
 function back(request: NextRequest, params: Record<string, string> = {}) {
@@ -12,19 +12,22 @@ export async function POST(request: NextRequest) {
   const form = await request.formData();
   const action = String(form.get("action") ?? "save");
   const id = String(form.get("id") ?? "").trim().toUpperCase();
-  if (!id) return back(request, { error: "Inserisci un ISIN o un simbolo" });
+  const brokerField = form.get("broker") ?? DEFAULT_BROKER;
+  if (!isBroker(brokerField)) return back(request, { error: "Broker non valido" });
+  const broker = brokerField;
+  if (!id) return back(request, { error: "Inserisci un ISIN o un simbolo", broker });
 
   if (action === "delete") {
-    await removeHolding(id);
-    return back(request);
+    await removeHolding(broker, id);
+    return back(request, { broker });
   }
 
   const qty = parseNumber(form.get("qty"));
   const manualPrice = parseNumber(form.get("manualPrice"));
-  if (qty === null || Number.isNaN(qty) || qty < 0) return back(request, { error: "Quantità non valida" });
-  if (Number.isNaN(manualPrice)) return back(request, { error: "Prezzo manuale non valido" });
+  if (qty === null || Number.isNaN(qty) || qty < 0) return back(request, { error: "Quantità non valida", broker });
+  if (Number.isNaN(manualPrice)) return back(request, { error: "Prezzo manuale non valido", broker });
 
-  const existing = await getHolding(id);
+  const existing = await getHolding(broker, id);
   let symbol = existing?.symbol ?? null;
   let name = existing?.name ?? id;
   let warning: string | undefined;
@@ -35,6 +38,7 @@ export async function POST(request: NextRequest) {
       if (manualPrice === null) {
         return back(request, {
           error: `${e instanceof Error ? e.message : e}. Inserisci un simbolo Yahoo (es. SPYI.DE, BTC-EUR) oppure un prezzo manuale.`,
+          broker,
         });
       }
       warning = "Prezzo live non trovato: uso il prezzo manuale.";
@@ -44,11 +48,12 @@ export async function POST(request: NextRequest) {
 
   await saveHolding({
     id,
+    broker,
     symbol,
     name: label || name,
     qty,
     manualPrice,
     updatedAt: new Date().toISOString(),
   });
-  return back(request, warning ? { warning } : { ok: id });
+  return back(request, warning ? { warning, broker } : { ok: id, broker });
 }
