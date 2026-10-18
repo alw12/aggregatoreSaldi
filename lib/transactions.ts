@@ -6,7 +6,24 @@ import { classify, type Movement } from "./flows";
 /** Movimenti di tutti i conti collegati, ultimi ~4 mesi, con cache di 6 ore (le banche limitano le letture). */
 
 const TTL = 6 * 3600;
-const DAYS = 120;
+// Alcune banche (es. BancoPosta, BBVA) rifiutano con 422 un periodo più lungo di quanto concedono senza nuova SCA:
+// si riprova con finestre più corte
+const WINDOWS = [120, 89, 30];
+
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+
+async function fetchWithShorterWindows(uid: string, psu: PsuHeaders): Promise<Transaction[]> {
+  let last: unknown;
+  for (const days of WINDOWS) {
+    try {
+      return await getTransactions(uid, daysAgo(days), psu);
+    } catch (e) {
+      last = e;
+      if (!(e instanceof EbError && e.status === 422)) throw e;
+    }
+  }
+  throw last;
+}
 
 export type MovementsResult = { moves: Movement[]; errors: string[]; fetchedAt: string | null };
 
@@ -17,6 +34,11 @@ function partyOf(t: Transaction): string {
 }
 
 function describe(e: unknown): string {
+  if (e instanceof EbError && e.status === 422) {
+    // Il corpo spiega il motivo (es. periodo non consentito): lo mostriamo abbreviato
+    const detail = e.body.match(/"(?:message|detail|error)"\s*:\s*"([^"]{1,140})/)?.[1];
+    return `la banca non concede i movimenti${detail ? ` (${detail})` : ""}`;
+  }
   if (e instanceof EbError) return e.status === 429 ? "limite di letture raggiunto, riprova più tardi" : e.status === 401 || e.status === 403 ? "consenso scaduto o senza accesso ai movimenti" : `errore ${e.status}`;
   return e instanceof Error ? e.message : String(e);
 }
@@ -28,7 +50,6 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
   const r = redis();
   const sessions = (await listSessions()).filter((s) => new Date(s.validUntil).getTime() > Date.now());
   const ownIbans = new Set(sessions.flatMap((s) => s.accounts.map((a) => a.iban?.replace(/\s/g, "").toUpperCase())).filter((x): x is string => !!x));
-  const from = new Date(Date.now() - DAYS * 86_400_000).toISOString().slice(0, 10);
   const errors: string[] = [];
   const stamps: string[] = [];
 
@@ -43,7 +64,7 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
         }
         if (!psu) return [];
         try {
-          const txs = await getTransactions(a.uid, from, psu);
+          const txs = await fetchWithShorterWindows(a.uid, psu);
           const account = `${s.aspsp.name}, ${a.label}`;
           const moves = txs
             .filter((t) => t.status !== "RJCT")
@@ -53,7 +74,7 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
               const party = partyOf(t);
               return {
                 id: `${a.uid}:${t.entry_reference ?? t.transaction_id ?? i}`,
-                date: t.booking_date ?? t.value_date ?? t.transaction_date ?? from,
+                date: t.booking_date ?? t.value_date ?? t.transaction_date ?? daysAgo(0),
                 amount,
                 currency: t.transaction_amount.currency,
                 party,

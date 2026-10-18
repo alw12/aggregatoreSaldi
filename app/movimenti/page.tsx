@@ -20,7 +20,7 @@ const daysBefore = (iso: string, n: number) => {
   d.setUTCDate(d.getUTCDate() - n);
   return d.toISOString().slice(0, 10);
 };
-const TAG: Partial<Record<Kind, string>> = { invest: "investito", internal: "giroconto" };
+const TAG: Partial<Record<Kind, string>> = { invest: "messo da parte", internal: "giroconto" };
 
 /** Entrate e uscite dai conti collegati: quanto risparmi davvero ogni mese e dove vanno i soldi. */
 export default async function MovementsPage() {
@@ -46,7 +46,7 @@ export default async function MovementsPage() {
     <main className="container">
       <Nav current="/movimenti" />
       <h1 className="page-title">Movimenti</h1>
-      <p className="page-lead">Entrate e uscite dei conti collegati negli ultimi mesi. I giroconti tra i tuoi conti non contano; i bonifici verso broker e buoni contano come risparmio investito.</p>
+      <p className="page-lead">Entrate e uscite dei conti collegati negli ultimi mesi. I giroconti tra i tuoi conti non contano; i bonifici verso broker, buoni e salvadanai contano come soldi messi da parte, non come spese.</p>
 
       {error && <div className="notice error">{error}</div>}
       {!hasBanks && !error && (
@@ -73,7 +73,7 @@ export default async function MovementsPage() {
               <div className="tile">
                 <span className="tile-label">Uscite al mese</span>
                 <span className="tile-value">{eur0(avg.spending)}</span>
-                <span className="tile-sub">senza investimenti</span>
+                <span className="tile-sub">esclusi i soldi messi da parte</span>
               </div>
               <div className="tile">
                 <span className="tile-label">Risparmi al mese</span>

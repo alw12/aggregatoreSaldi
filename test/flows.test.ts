@@ -13,6 +13,7 @@ describe("movimenti", () => {
     expect(classify(-300, "Trade Republic Bank", null, own)).toBe("invest");
     expect(classify(1500, "Stipendio ACME", null, own)).toBe("in");
     expect(classify(-40, "Esselunga", null, own)).toBe("out");
+    expect(classify(-5.98, "Risparmio Casa", null, own)).toBe("invest");
   });
   it("somma per mese, esclude giroconti, calcola il tasso di risparmio", () => {
     const flows = monthlyFlows([

@@ -12,8 +12,9 @@ export type Movement = {
   kind: Kind;
 };
 
-// Soldi spostati verso broker e risparmio: non sono spese, sono risparmio investito
-const INVEST = /scalable|trade ?republic|directa|degiro|fineco.*titoli|moneyfarm|revolut.*(invest|stock)|buon[oi] frutt|\bbfp\b|fondo pensione|cometa|fonte\b|investiment/i;
+// Soldi spostati verso broker, salvadanai e risparmio: non sono spese, sono messi da parte
+const INVEST =
+  /scalable|trade ?republic|directa|degiro|fineco.*titoli|moneyfarm|revolut.*(invest|stock)|buon[oi] frutt|\bbfp\b|fondo pensione|cometa|fonte\b|investiment|risparmio|salvadanaio|\bvault\b|\bpocket\b|round.?up/i;
 
 export function classify(amount: number, party: string, counterIban: string | null, ownIbans: Set<string>): Kind {
   if (counterIban && ownIbans.has(counterIban.replace(/\s/g, "").toUpperCase())) return "internal";

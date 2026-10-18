@@ -148,7 +148,7 @@ export function FlowChart({ rows }: { rows: FlowRow[] }) {
   const series = [
     { k: "income", label: "Entrate", slot: 1 },
     { k: "spending", label: "Uscite", slot: 3 },
-    { k: "invested", label: "Investito", slot: 2 },
+    { k: "invested", label: "Messo da parte", slot: 2 },
   ] as const;
   const shown = series.filter((s) => rows.some((r) => r[s.k] > 0));
   return (
