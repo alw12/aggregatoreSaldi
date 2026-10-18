@@ -1,17 +1,15 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { after } from "next/server";
-import { loadDashboard, psuHeadersFrom, type BankView } from "@/lib/data";
+import { psuHeadersFrom } from "@/lib/data";
 import { hasStore } from "@/lib/store";
-import { byAssetClass, loadPortfolio, type HoldingView } from "@/lib/portfolio";
-import { loadBonds, type BondView } from "@/lib/bonds";
-import { loadCards, type CreditCardView } from "@/lib/cards";
-import { listManualAccounts, type ManualAccount } from "@/lib/manual";
-import { listDebts, type Debt } from "@/lib/debts";
-import { loadHistory, recordSnapshot, todayRome, type Snapshot } from "@/lib/history";
+import { byAssetClass } from "@/lib/portfolio";
+import { recordSnapshot, todayRome } from "@/lib/history";
+import { changeSince, loadOverview, type Overview } from "@/lib/overview";
+import { computeAlerts } from "@/lib/alerts";
 import { QuickEdit } from "./quick-edit";
 import { Nav } from "./nav";
-import { AllocationBar, SplitChart } from "./charts";
+import { AllocationBar } from "./charts";
 import { TrendChart } from "./trend-chart";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +17,7 @@ export const dynamic = "force-dynamic";
 function fmt(amount: number, currency: string) {
   return new Intl.NumberFormat("it-IT", { style: "currency", currency, useGrouping: "always" }).format(amount);
 }
+const signed = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always", signDisplay: "always" }).format(n);
 
 function maskIban(iban?: string) {
   return iban ? `${iban.slice(0, 4)} •••• ${iban.slice(-4)}` : undefined;
@@ -48,13 +47,41 @@ function HeroAmount({ value }: { value: number }) {
   );
 }
 
-function totalsByCurrency(banks: BankView[], manual: ManualAccount[]) {
-  const totals = new Map<string, number>();
-  for (const b of banks)
-    for (const a of b.accounts)
-      if (a.amount !== null) totals.set(a.currency, (totals.get(a.currency) ?? 0) + a.amount);
-  for (const a of manual) totals.set(a.currency, (totals.get(a.currency) ?? 0) + a.amount);
-  return [...totals.entries()].sort(([a], [b]) => (a === "EUR" ? -1 : b === "EUR" ? 1 : a.localeCompare(b)));
+/** Variazione a 7 e 30 giorni; se lo storico è più corto, dall'inizio. */
+function Changes({ days }: { days: Overview["days"] }) {
+  const rows: { label: string; delta: number }[] = [];
+  const w = changeSince(days, 7);
+  const m = changeSince(days, 30);
+  if (w) rows.push({ label: "in 7 giorni", delta: w.delta });
+  if (m) rows.push({ label: "in 30 giorni", delta: m.delta });
+  else if (days.length >= 2) rows.push({ label: `dal ${shortDate(days[0].date)}`, delta: days.at(-1)!.total - days[0].total });
+  if (!rows.length) return null;
+  return (
+    <div className="hero-changes">
+      {rows.map((r) => (
+        <span key={r.label} className={`change ${r.delta >= 0 ? "up" : "down"}`}>
+          <span aria-hidden>{r.delta >= 0 ? "▲" : "▼"}</span> {signed(r.delta)} <span className="change-label">{r.label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Un gruppo della panoramica: chiuso mostra solo nome e totale, aperto le singole voci. */
+function Group({ title, meta, sum, neg, children, foot }: { title: React.ReactNode; meta: string; sum: React.ReactNode; neg?: boolean; children: React.ReactNode; foot?: React.ReactNode }) {
+  return (
+    <details className="card bank group">
+      <summary>
+        <div>
+          <div className="bank-name">{title}</div>
+          <div className="bank-meta">{meta}</div>
+        </div>
+        <div className={`bank-sum${neg ? " neg" : ""}`}>{sum}</div>
+      </summary>
+      {children}
+      {foot && <div className="group-foot">{foot}</div>}
+    </details>
+  );
 }
 
 export default async function Home({ searchParams }: PageProps<"/">) {
@@ -74,27 +101,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     );
   }
 
-  let banks: BankView[];
-  let portfolio: { holdings: HoldingView[]; error: string | null };
-  let bonds: BondView[];
-  let cards: CreditCardView[];
-  let manualAccounts: ManualAccount[];
-  let history: Snapshot[];
-  let debts: Debt[];
+  let o: Overview;
   try {
-    const psu = psuHeadersFrom(await headers());
-    [banks, portfolio, bonds, cards, manualAccounts, history, debts] = await Promise.all([
-      loadDashboard(psu),
-      loadPortfolio().then(
-        (holdings) => ({ holdings, error: null }),
-        (e: unknown) => ({ holdings: [] as HoldingView[], error: e instanceof Error ? e.message : String(e) }),
-      ),
-      loadBonds(),
-      loadCards(),
-      listManualAccounts(),
-      loadHistory().catch(() => [] as Snapshot[]),
-      listDebts(),
-    ]);
+    o = await loadOverview(psuHeadersFrom(await headers()));
   } catch (e) {
     return (
       <main className="container">
@@ -108,38 +117,18 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     );
   }
 
-  const totals = totalsByCurrency(banks, manualAccounts);
-  const accountsCount = banks.reduce((n, b) => n + b.accounts.length, 0) + manualAccounts.length;
-  const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
-  const { holdings, error: portfolioError } = portfolio;
-  const holdingsValue = holdings.reduce((sum, h) => sum + (h.value ?? 0), 0);
-  const withCost = holdings.filter((h) => h.gain !== null);
-  const holdingsCost = withCost.reduce((sum, h) => sum + (h.cost ?? 0), 0);
-  const holdingsGain = withCost.reduce((sum, h) => sum + (h.gain ?? 0), 0);
+  const { banks, manual: manualAccounts, holdings, portfolioError, bonds, cards, debts, totals: t } = o;
   const classes = byAssetClass(holdings);
-  const bondsValue = bonds.reduce((sum, b) => sum + b.value, 0);
-  const invested = holdingsValue + bondsValue;
-  const cardsDebt = cards.reduce((sum, c) => sum + c.balance, 0);
-  const cashEur = totals.find(([c]) => c === "EUR")?.[1] ?? 0;
-  const otherCurrencies = totals.filter(([c]) => c !== "EUR");
-  const oldest = banks.map((b) => b.fetchedAt).filter(Boolean).sort()[0] ?? null;
-  const debtsTotal = debts.reduce((sum, d) => sum + d.amount, 0);
-  const net = cashEur + invested - cardsDebt - debtsTotal;
-  const isEmpty =
-    banks.length === 0 && holdings.length === 0 && bonds.length === 0 && cards.length === 0 && manualAccounts.length === 0 && debts.length === 0;
+  const withCost = holdings.filter((h) => h.gain !== null);
+  const multiBroker = new Set(holdings.map((h) => h.broker)).size > 1;
+  const today = todayRome();
+  const alerts = computeAlerts(o, today);
 
   // Una fotografia al giorno per il grafico; solo se tutto è stato letto, per non registrare buchi.
-  const today = todayRome();
-  const complete = !isEmpty && failed === 0 && !portfolioError && holdings.every((h) => h.value !== null);
-  if (complete) after(() => recordSnapshot({ total: net, cash: cashEur, invested, cards: cardsDebt, debts: debtsTotal }));
-  const days: Snapshot[] = [
-    ...history.filter((s) => s.date !== today),
-    ...(complete ? [{ date: today, total: net, cash: cashEur, invested, cards: cardsDebt, debts: debtsTotal }] : history.filter((s) => s.date === today)),
-  ];
-  const trend = days.map((s) => ({ date: s.date, value: s.total }));
-  const investedShare = days
-    .filter((s) => s.cash + s.invested > 0)
-    .map((s) => ({ date: s.date, value: Math.max(0, s.invested) / (Math.max(0, s.cash) + Math.max(0, s.invested)) }));
+  const snap = o.today;
+  if (snap) after(() => recordSnapshot(snap));
+  const trend = o.days.map((s) => ({ date: s.date, value: s.total }));
+  const pct = (n: number) => new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 0 }).format(n);
 
   return (
     <main className="container">
@@ -147,7 +136,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       {actionError && <div className="notice error">{actionError}</div>}
 
-      {isEmpty ? (
+      {o.isEmpty ? (
         <div className="card empty">
           <p>Collega una banca o aggiungi a mano un conto, un investimento o un buono.</p>
           <Link className="btn btn-primary" href="/connect">Collega la prima banca</Link>
@@ -156,21 +145,22 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         <>
           <section className="hero" aria-labelledby="hero-label">
             <div id="hero-label" className="hero-label">Patrimonio netto</div>
-            <div className="hero-value"><HeroAmount value={net} /></div>
-            {debtsTotal > 0 && (
+            <div className="hero-value"><HeroAmount value={t.net} /></div>
+            <Changes days={o.days} />
+            {t.debts > 0 && (
               <div className="hero-alt">
                 <span className="hero-alt-label">Senza debiti</span>
-                <span className="hero-alt-value">{fmt(net + debtsTotal, "EUR")}</span>
+                <span className="hero-alt-value">{fmt(t.net + t.debts, "EUR")}</span>
               </div>
             )}
-            {otherCurrencies.map(([cur, amt]) => (
+            {o.otherCurrencies.map(([cur, amt]) => (
               <div key={cur} className="hero-other">+ {fmt(amt, cur)}</div>
             ))}
             <AllocationBar
               parts={[
-                { key: "cash", label: "Liquidità", value: cashEur, slot: 1 },
-                { key: "etf", label: "ETF e crypto", value: holdingsValue, slot: 2 },
-                { key: "bfp", label: "Buoni postali", value: bondsValue, slot: 3 },
+                { key: "cash", label: "Liquidità", value: t.cash, slot: 1 },
+                { key: "etf", label: "ETF e crypto", value: t.holdings, slot: 2 },
+                { key: "bfp", label: "Buoni postali", value: t.bonds, slot: 3 },
               ]}
             />
             {(cards.length > 0 || debts.length > 0) && (
@@ -178,49 +168,31 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 {cards.length > 0 && (
                   <Link href="/carte" className="liability">
                     <span className="liability-label">Carte da addebitare</span>
-                    <span className={`liability-value${cardsDebt > 0 ? " neg" : ""}`}>{fmt(-cardsDebt, "EUR")}</span>
+                    <span className={`liability-value${t.cards > 0 ? " neg" : ""}`}>{fmt(-t.cards, "EUR")}</span>
                   </Link>
                 )}
                 {debts.length > 0 && (
                   <Link href="/debiti" className="liability">
                     <span className="liability-label">Debiti</span>
-                    <span className={`liability-value${debtsTotal > 0 ? " neg" : ""}`}>{fmt(-debtsTotal, "EUR")}</span>
+                    <span className={`liability-value${t.debts > 0 ? " neg" : ""}`}>{fmt(-t.debts, "EUR")}</span>
                   </Link>
                 )}
               </div>
             )}
             <div className="hero-sub">
-              {(cardsDebt > 0 || debtsTotal > 0) && <>Il patrimonio netto è già al netto di {cardsDebt > 0 && debtsTotal > 0 ? "carte e debiti" : cardsDebt > 0 ? "carte" : "debiti"}. </>}
-              {accountsCount} {accountsCount === 1 ? "conto" : "conti"}, letti {when(oldest)}.
-              {failed > 0 && (
-                <span className="warn"> {failed} non {failed === 1 ? "letto, escluso" : "letti, esclusi"} dal totale.</span>
-              )}
+              {(t.cards > 0 || t.debts > 0) && <>Il patrimonio netto è già al netto di {t.cards > 0 && t.debts > 0 ? "carte e debiti" : t.cards > 0 ? "carte" : "debiti"}. </>}
+              {o.accountsCount} {o.accountsCount === 1 ? "conto" : "conti"}, letti {when(o.oldestFetch)}.
             </div>
           </section>
 
-          {banks.some((b) => !b.expired && b.daysLeft <= 14) && (
-            <div className="notice">
-              Uno o più consensi scadono a breve: ricollega la banca da “Collega banca” per non perdere l’accesso.
-            </div>
-          )}
-
-          {cashEur + invested > 0 && (
-            <section className="card chart-card">
-              <div className="chart-title">Investito e liquido</div>
-              <SplitChart cash={cashEur} etf={holdingsValue} bonds={bondsValue} />
-              <div className="split-sub">
-                {investedShare.length >= 2 ? (
-                  <>
-                    <p className="chart-note">Quota investita giorno per giorno.</p>
-                    <TrendChart points={investedShare} unit="pct" label="Quota investita" slot={2} />
-                  </>
-                ) : (
-                  <p className="chart-note" style={{ marginBottom: 0 }}>
-                    Da domani qui vedi anche come cambia nel tempo la quota investita.
-                  </p>
-                )}
-              </div>
-            </section>
+          {alerts.length > 0 && (
+            <ul className="alerts" aria-label="Da sistemare">
+              {alerts.map((a) => (
+                <li key={a.key} className={`alert ${a.level}`}>
+                  <Link href={a.href}>{a.text}</Link>
+                </li>
+              ))}
+            </ul>
           )}
 
           <section className="card chart-card">
@@ -228,70 +200,72 @@ export default async function Home({ searchParams }: PageProps<"/">) {
             {trend.length >= 2 ? (
               <>
                 <p className="chart-note">
-                  Patrimonio netto dal {shortDate(trend[0].date)}. Passa sopra il grafico per il valore di ogni giorno.
+                  Patrimonio netto dal {shortDate(trend[0].date)}. Altri grafici in <Link href="/grafici">Grafici</Link>.
                 </p>
                 <TrendChart points={trend} label="Patrimonio netto" />
               </>
             ) : (
               <p className="chart-note" style={{ marginBottom: 0 }}>
-                Ogni giorno in cui apri Saldi viene salvato il totale: da domani qui compare la linea dell’andamento.
+                Ogni giorno viene salvato il totale: da domani qui compare la linea dell’andamento.
               </p>
             )}
           </section>
+
+          <h2 className="section-head">Dettaglio</h2>
 
           {banks.map((b) => {
             const sums = new Map<string, number>();
             for (const a of b.accounts) if (a.amount !== null) sums.set(a.currency, (sums.get(a.currency) ?? 0) + a.amount);
             return (
-              <section key={b.sessionId} className="card bank clickable">
-                <Link href={`/banca/${b.sessionId}`} className="bank-link">
-                  <div className="bank-head">
+              <Group
+                key={b.sessionId}
+                title={
+                  <>
+                    {b.bank}
+                    {b.expired ? <span className="badge">consenso scaduto</span> : b.daysLeft <= 14 ? <span className="badge">scade tra {b.daysLeft} gg</span> : null}
+                  </>
+                }
+                meta={`${b.accounts.length} ${b.accounts.length === 1 ? "conto" : "conti"}, letto ${when(b.fetchedAt)}`}
+                sum={[...sums.entries()].map(([c, v]) => <div key={c}>{fmt(v, c)}</div>)}
+                foot={
+                  <>
+                    <Link className="btn btn-ghost" href={`/banca/${b.sessionId}`}>Correggi un saldo</Link>
+                    <form method="post" action="/api/eb/disconnect">
+                      <input type="hidden" name="sessionId" value={b.sessionId} />
+                      <button className="btn btn-ghost danger" type="submit">Scollega {b.bank}</button>
+                    </form>
+                  </>
+                }
+              >
+                {b.accounts.map((a) => (
+                  <div key={a.uid} className="account">
                     <div>
-                      <div className="bank-name">
-                        {b.bank}
-                        {b.expired ? <span className="badge">consenso scaduto</span> : b.daysLeft <= 14 ? <span className="badge">scade tra {b.daysLeft} gg</span> : null}
-                      </div>
-                      <div className="bank-meta">Letto {when(b.fetchedAt)}. Tocca per correggere un saldo.</div>
-                    </div>
-                    <div className="bank-sum">
-                      {[...sums.entries()].map(([c, v]) => <div key={c}>{fmt(v, c)}</div>)}
-                    </div>
-                  </div>
-                  {b.accounts.map((a) => (
-                    <div key={a.uid} className="account">
-                      <div>
-                        <div className="account-label">{a.label}</div>
-                        {(a.iban || a.manualAt) && (
-                          <div className="account-iban">
-                            {maskIban(a.iban)}
-                            {a.manualAt && <>{a.iban ? ", " : ""}saldo manuale del {when(a.manualAt)}</>}
-                          </div>
-                        )}
-                      </div>
-                      {a.amount !== null ? (
-                        <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
-                      ) : (
-                        <div className="err">{a.error}</div>
+                      <div className="account-label">{a.label}</div>
+                      {(a.iban || a.manualAt) && (
+                        <div className="account-iban">
+                          {maskIban(a.iban)}
+                          {a.manualAt && <>{a.iban ? ", " : ""}saldo manuale del {when(a.manualAt)}</>}
+                        </div>
                       )}
                     </div>
-                  ))}
-                </Link>
-                <form method="post" action="/api/eb/disconnect" className="group-foot">
-                  <input type="hidden" name="sessionId" value={b.sessionId} />
-                  <button className="btn btn-ghost danger" type="submit">Scollega {b.bank}</button>
-                </form>
-              </section>
+                    {a.amount !== null ? (
+                      <div className={`amount${a.amount < 0 ? " neg" : ""}`}>{fmt(a.amount, a.currency)}</div>
+                    ) : (
+                      <div className="err">{a.error}</div>
+                    )}
+                  </div>
+                ))}
+              </Group>
             );
           })}
 
           {manualAccounts.length > 0 && (
-            <section className="card bank">
-              <div className="bank-head">
-                <div>
-                  <div className="bank-name">Conti manuali</div>
-                  <div className="bank-meta">Saldi che aggiorni tu</div>
-                </div>
-              </div>
+            <Group
+              title="Conti manuali"
+              meta="Saldi che aggiorni tu"
+              sum={fmt(manualAccounts.filter((a) => a.currency === "EUR").reduce((s, a) => s + a.amount, 0), "EUR")}
+              foot={<Link className="btn btn-ghost" href="/conti">Gestisci conti</Link>}
+            >
               {manualAccounts.map((a) => (
                 <div key={a.id} className="account">
                   <div>
@@ -304,35 +278,30 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   </div>
                 </div>
               ))}
-              <div className="group-foot">
-                <Link className="btn btn-ghost" href="/conti">Gestisci conti</Link>
-              </div>
-            </section>
+            </Group>
           )}
 
           {(holdings.length > 0 || portfolioError) && (
-            <section className="card bank">
-              <div className="bank-head">
-                <div>
-                  <div className="bank-name">Portafoglio</div>
-                  <div className="bank-meta">
-                    {classes.length > 1 && holdingsValue > 0
-                      ? classes
-                          .map((c) => `${c.label} ${new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 0 }).format(c.value / holdingsValue)}`)
-                          .join(", ")
-                      : "ETF, oro e crypto a prezzi di mercato"}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="bank-sum">{fmt(holdingsValue, "EUR")}</div>
-                  {holdingsCost > 0 && (
-                    <div className={`gain ${holdingsGain >= 0 ? "up" : "down"}`}>
-                      {new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", signDisplay: "always" }).format(holdingsGain)}
+            <Group
+              title="Portafoglio"
+              meta={
+                classes.length > 1 && t.holdings > 0
+                  ? classes.map((c) => `${c.label} ${pct(c.value / t.holdings)}`).join(", ")
+                  : "ETF, oro e crypto a prezzi di mercato"
+              }
+              sum={
+                <>
+                  {fmt(t.holdings, "EUR")}
+                  {t.holdingsGain !== null && (
+                    <div className={`gain ${t.holdingsGain >= 0 ? "up" : "down"}`}>
+                      {signed(t.holdingsGain)}
                       {withCost.length < holdings.length ? " (su parte)" : ""}
                     </div>
                   )}
-                </div>
-              </div>
+                </>
+              }
+              foot={<Link className="btn btn-ghost" href="/portfolio">Apri portafoglio</Link>}
+            >
               {portfolioError && <div className="err" style={{ textAlign: "left" }}>{portfolioError}</div>}
               {holdings.map((h) => (
                 <div key={`${h.broker}|${h.id}`} className="account">
@@ -341,27 +310,22 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                     <div className="account-iban">
                       {new Intl.NumberFormat("it-IT", { maximumFractionDigits: 6 }).format(h.qty)} quote
                       {h.price !== null && <> a {fmt(h.price, "EUR")}{h.priceSource === "manuale" ? " (manuale)" : ""}</>}
-                      {new Set(holdings.map((x) => x.broker)).size > 1 && <>, {h.broker}</>}
+                      {multiBroker && <>, {h.broker}</>}
                     </div>
                   </div>
                   {h.value !== null ? <div className="amount">{fmt(h.value, "EUR")}</div> : <div className="err">{h.error}</div>}
                 </div>
               ))}
-              <div className="group-foot">
-                <Link className="btn btn-ghost" href="/portfolio">Apri portafoglio</Link>
-              </div>
-            </section>
+            </Group>
           )}
 
           {bonds.length > 0 && (
-            <section className="card bank">
-              <div className="bank-head">
-                <div>
-                  <div className="bank-name">Buoni fruttiferi postali</div>
-                  <div className="bank-meta">Valori di rimborso netti</div>
-                </div>
-                <div className="bank-sum">{fmt(bondsValue, "EUR")}</div>
-              </div>
+            <Group
+              title="Buoni fruttiferi postali"
+              meta="Valori di rimborso netti"
+              sum={fmt(t.bonds, "EUR")}
+              foot={<Link className="btn btn-ghost" href="/buoni">Gestisci buoni</Link>}
+            >
               {bonds.map((b) => (
                 <div key={b.id} className="account">
                   <div>
@@ -389,21 +353,17 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   </div>
                 </div>
               ))}
-              <div className="group-foot">
-                <Link className="btn btn-ghost" href="/buoni">Gestisci buoni</Link>
-              </div>
-            </section>
+            </Group>
           )}
 
           {cards.length > 0 && (
-            <section className="card bank">
-              <div className="bank-head">
-                <div>
-                  <div className="bank-name">Carte di credito</div>
-                  <div className="bank-meta">Speso da addebitare</div>
-                </div>
-                <div className={`bank-sum${cardsDebt > 0 ? " neg" : ""}`}>{fmt(-cardsDebt, "EUR")}</div>
-              </div>
+            <Group
+              title="Carte di credito"
+              meta="Speso da addebitare"
+              sum={fmt(-t.cards, "EUR")}
+              neg={t.cards > 0}
+              foot={<Link className="btn btn-ghost" href="/carte">Gestisci carte</Link>}
+            >
               {cards.map((c) => (
                 <div key={c.id} className="account">
                   <div>
@@ -420,10 +380,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   </div>
                 </div>
               ))}
-              <div className="group-foot">
-                <Link className="btn btn-ghost" href="/carte">Gestisci carte</Link>
-              </div>
-            </section>
+            </Group>
           )}
         </>
       )}

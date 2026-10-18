@@ -10,6 +10,7 @@ import {
   type HoldingView,
 } from "@/lib/portfolio";
 import { HoldingBars } from "@/app/charts";
+import { ImportForm } from "./import-form";
 
 export const dynamic = "force-dynamic";
 
@@ -215,6 +216,7 @@ export default async function PortfolioPage({ searchParams }: PageProps<"/portfo
         </label>
         <button className="btn btn-primary" type="submit">Salva</button>
       </form>
+      <ImportForm brokers={BROKERS} defaultBroker={lastBroker} />
     </main>
   );
 }

@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { BottomNav } from "./bottom-nav";
+import { PrivacyToggle } from "./privacy";
 
 const SECTIONS = [
   { href: "/", label: "Panoramica" },
   { href: "/grafici", label: "Grafici" },
+  { href: "/movimenti", label: "Movimenti" },
   { href: "/portfolio", label: "Portafoglio" },
   { href: "/buoni", label: "Buoni" },
   { href: "/carte", label: "Carte" },
@@ -10,15 +13,17 @@ const SECTIONS = [
   { href: "/beni", label: "Beni" },
   { href: "/debiti", label: "Debiti" },
   { href: "/consigli", label: "Milionario" },
+  { href: "/avvisi", label: "Avvisi" },
 ] as const;
 
-/** Testata comune: marchio, sezioni (scorrevoli su telefono), aggiorna ed esci. */
+/** Testata comune: marchio, sezioni (su telefono nella barra in basso), privacy, aggiorna ed esci. */
 export function Nav({ current }: { current: string }) {
   return (
     <header className="masthead">
       <div className="masthead-row">
         <Link href="/" className="wordmark">Saldi</Link>
         <div className="tools">
+          <PrivacyToggle />
           <form method="post" action="/api/refresh">
             <button className="btn btn-quiet" type="submit" title="Rileggi saldi e prezzi">Aggiorna</button>
           </form>
@@ -37,13 +42,7 @@ export function Nav({ current }: { current: string }) {
           Collega banca
         </Link>
       </nav>
-      {/* Su telefono porta in vista la sezione aperta (il menu scorre in orizzontale). */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html:
-            "(function(){var n=document.getElementById('sections');var a=n&&n.querySelector('[aria-current=page]');if(a&&a.offsetLeft+a.offsetWidth>n.clientWidth)n.scrollLeft=a.offsetLeft-16;})();",
-        }}
-      />
+      <BottomNav />
     </header>
   );
 }

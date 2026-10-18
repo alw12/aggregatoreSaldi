@@ -24,9 +24,13 @@ export async function POST(request: NextRequest) {
   const amount = parseNumber(form.get("amount"));
   const dueDate = String(form.get("dueDate") ?? "").trim() || null;
   const note = String(form.get("note") ?? "").trim().slice(0, 300) || null;
+  const rate = parseNumber(form.get("rate"));
+  const installment = parseNumber(form.get("installment"));
 
   if (!name) return back(request, { error: "Scrivi a chi o per cosa è il debito" });
   if (amount === null || Number.isNaN(amount) || amount < 0) return back(request, { error: "Importo non valido" });
+  if (Number.isNaN(rate) || (rate !== null && (rate < 0 || rate > 100))) return back(request, { error: "TAEG non valido" });
+  if (Number.isNaN(installment) || (installment !== null && installment < 0)) return back(request, { error: "Rata non valida" });
   if (dueDate && (!DATE_RE.test(dueDate) || Number.isNaN(Date.parse(dueDate)))) return back(request, { error: "Scadenza non valida" });
 
   const existing = id ? await getDebt(id) : null;
@@ -36,6 +40,8 @@ export async function POST(request: NextRequest) {
     amount,
     dueDate,
     note,
+    rate,
+    installment: installment || null,
     updatedAt: new Date().toISOString(),
   });
   return back(request);

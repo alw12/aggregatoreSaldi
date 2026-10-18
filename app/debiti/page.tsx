@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Nav } from "@/app/nav";
 import { listDebts, type Debt } from "@/lib/debts";
+import { LoanPlan } from "./loan-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -43,10 +44,11 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
           <div key={d.id} className="account">
             <div>
               <div className="account-label">{d.name}</div>
-              {(d.dueDate || d.note) && (
+              {(d.dueDate || d.note || d.installment) && (
                 <div className="account-iban">
-                  {d.dueDate && <>entro il {day(d.dueDate)}</>}
-                  {d.note && <>{d.dueDate ? ". " : ""}{d.note}</>}
+                  {d.installment ? <>{eur(d.installment)} al mese{d.rate != null ? `, TAEG ${it(d.rate)}%` : ""}</> : null}
+                  {d.dueDate && <>{d.installment ? ", " : ""}entro il {day(d.dueDate)}</>}
+                  {d.note && <>{d.dueDate || d.installment ? ". " : ""}{d.note}</>}
                 </div>
               )}
             </div>
@@ -65,6 +67,12 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
         ))}
       </section>
 
+      {debts
+        .filter((d) => d.installment && d.amount > 0)
+        .map((d) => (
+          <LoanPlan key={d.id} name={d.name} balance={d.amount} installment={d.installment!} rate={d.rate ?? null} />
+        ))}
+
       <form key={editing?.id ?? "new"} className="card form-grid" method="post" action="/api/debts">
         <div className="form-title">{editing ? `Modifica ${editing.name}` : "Registra un debito"}</div>
         {editing && <input type="hidden" name="id" value={editing.id} />}
@@ -80,6 +88,15 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
           Da restituire entro (facoltativo)
           <input name="dueDate" type="date" defaultValue={editing?.dueDate ?? undefined} />
         </label>
+        <label>
+          Rata mensile in € (facoltativa, per i prestiti)
+          <input name="installment" inputMode="decimal" placeholder="es. 185,40" defaultValue={editing?.installment ? it(editing.installment) : undefined} />
+        </label>
+        <label>
+          TAEG in % (facoltativo, è scritto sul contratto)
+          <input name="rate" inputMode="decimal" placeholder="es. 9,9" defaultValue={editing?.rate != null ? it(editing.rate) : undefined} />
+        </label>
+        <p className="form-hint">Con rata e TAEG vedi quando finisci di pagare e quanto risparmi restituendo prima.</p>
         <label>
           Nota (facoltativo)
           <input name="note" maxLength={300} placeholder="es. 50 € al mese" defaultValue={editing?.note ?? undefined} />

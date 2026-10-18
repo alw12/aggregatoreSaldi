@@ -119,12 +119,13 @@ export async function syncBroker(broker: Broker, positions: SyncPosition[]): Pro
   for (const p of positions) {
     const id = p.id.trim().toUpperCase();
     const prev = current.find((h) => h.id === id);
-    const symbol = prev?.symbol ?? (await resolveSymbol(id).then((x) => x.symbol, () => null));
+    // Strumento nuovo (o senza simbolo): risolvi simbolo e nome una volta sola
+    const resolved = prev?.symbol ? null : await resolveSymbol(id).catch(() => null);
     next[holdingKey(broker, id)] = {
       id,
       broker,
-      symbol,
-      name: prev?.name ?? p.name ?? id,
+      symbol: prev?.symbol ?? resolved?.symbol ?? null,
+      name: prev?.name ?? p.name ?? resolved?.name ?? id,
       qty: p.qty,
       manualPrice: p.price ?? prev?.manualPrice ?? null,
       avgCost: p.avgCost ?? prev?.avgCost ?? null,

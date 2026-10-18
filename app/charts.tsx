@@ -138,3 +138,39 @@ export function SplitChart({ cash, etf, bonds }: { cash: number; etf: number; bo
     </figure>
   );
 }
+
+export type FlowRow = { key: string; label: string; income: number; spending: number; invested: number };
+
+/** Entrate, uscite e investito mese per mese: barre affiancate sulla stessa scala, importi scritti. */
+export function FlowChart({ rows }: { rows: FlowRow[] }) {
+  const max = Math.max(0, ...rows.flatMap((r) => [r.income, r.spending, r.invested]));
+  if (max <= 0) return null;
+  const series = [
+    { k: "income", label: "Entrate", slot: 1 },
+    { k: "spending", label: "Uscite", slot: 3 },
+    { k: "invested", label: "Investito", slot: 2 },
+  ] as const;
+  const shown = series.filter((s) => rows.some((r) => r[s.k] > 0));
+  return (
+    <figure className="flows">
+      <div className="flow-legend">
+        {shown.map((s) => (
+          <span key={s.k}><span className={`swatch s${s.slot}`} aria-hidden />{s.label}</span>
+        ))}
+      </div>
+      {rows.map((r) => (
+        <div key={r.key} className="flow-month">
+          <div className="flow-label">{r.label}</div>
+          {shown.map((s) => (
+            <div key={s.k} className="flow-row" title={`${s.label} ${r.label}: ${eur(r[s.k])}`}>
+              <span className="flow-track">
+                <span className={`flow-fill s${s.slot}`} style={{ width: `${r[s.k] > 0 ? Math.max(1.5, (r[s.k] / max) * 100) : 0}%` }} />
+              </span>
+              <span className="flow-value">{eur(r[s.k])}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </figure>
+  );
+}

@@ -4,6 +4,9 @@ import { psuHeadersFrom } from "@/lib/data";
 import { hasStore } from "@/lib/store";
 import { byAssetClass, byInstrument } from "@/lib/portfolio";
 import { loadOverview, type Overview } from "@/lib/overview";
+import { loadMovements } from "@/lib/transactions";
+import { averageMonth, monthlyFlows, type Movement } from "@/lib/flows";
+import { todayRome } from "@/lib/history";
 import { Planner, type Facts } from "./planner";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +24,7 @@ const INDEXES: [RegExp, string][] = [
 /** Finanziarie e banche di credito al consumo riconoscibili dal nome del debito. */
 const CONSUMER_LENDERS = /compass|findomestic|agos|cofidis|younited|fiditalia|santander consumer|deutsche bank easy|ibl|pitagora|prestito personale|finanziamento/i;
 
-function facts(o: Overview): Facts {
+function facts(o: Overview, moves: Movement[]): Facts {
   const t = o.totals;
   const instruments = byInstrument(o.holdings);
   const overlaps = INDEXES.map(([re, index]) => ({ index, names: instruments.filter((i) => re.test(i.name)).map((i) => i.name) })).filter(
@@ -49,6 +52,7 @@ function facts(o: Overview): Facts {
     overlaps,
     sameOnBrokers: instruments.filter((i) => i.brokers.length > 1).map((i) => i.name),
     brokers: new Set(o.holdings.map((h) => h.broker)).size,
+    flow: averageMonth(monthlyFlows(moves), todayRome().slice(0, 7)),
   };
 }
 
@@ -57,7 +61,9 @@ export default async function TipsPage() {
   let error: string | null = null;
   if (hasStore()) {
     try {
-      data = facts(await loadOverview(psuHeadersFrom(await headers())));
+      const psu = psuHeadersFrom(await headers());
+      const [o, mv] = await Promise.all([loadOverview(psu), loadMovements(psu).catch(() => ({ moves: [] as Movement[] }))]);
+      data = facts(o, mv.moves);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }

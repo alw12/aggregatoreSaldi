@@ -7,7 +7,7 @@ import { loadCards, type CreditCardView } from "./cards";
 import { listManualAccounts, type ManualAccount } from "./manual";
 import { listDebts, type Debt } from "./debts";
 import { listPossessions, type Possession } from "./beni";
-import { loadHistory, type Snapshot } from "./history";
+import { loadHistory, todayRome, type Snapshot } from "./history";
 
 /** Tutti i dati dell'app in una volta, con gli stessi totali della Panoramica. */
 export type Overview = {
@@ -21,6 +21,14 @@ export type Overview = {
   beni: Possession[];
   history: Snapshot[];
   failed: number; // conti non letti, esclusi dai totali
+  accountsCount: number;
+  oldestFetch: string | null; // lettura più vecchia tra le banche collegate
+  otherCurrencies: [string, number][]; // saldi non in EUR, fuori dal totale
+  isEmpty: boolean;
+  /** Fotografia di oggi; null se qualcosa non è stato letto, per non registrare buchi nello storico. */
+  today: Omit<Snapshot, "date"> | null;
+  /** Storico con la fotografia di oggi già al suo posto. */
+  days: Snapshot[];
   totals: {
     cash: number; // solo EUR
     holdings: number;
@@ -63,6 +71,20 @@ export async function loadOverview(psu: PsuHeaders): Promise<Overview> {
   const invested = holdings + bondsValue;
   const net = cash + invested - cardsDebt - debtsTotal;
 
+  const other = new Map<string, number>();
+  for (const a of banks.flatMap((b) => b.accounts)) if (a.amount !== null && a.currency !== "EUR") other.set(a.currency, (other.get(a.currency) ?? 0) + a.amount);
+  for (const a of manual) if (a.currency !== "EUR") other.set(a.currency, (other.get(a.currency) ?? 0) + a.amount);
+  const failed = banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0);
+  const isEmpty =
+    banks.length === 0 && portfolio.holdings.length === 0 && bonds.length === 0 && cards.length === 0 && manual.length === 0 && debts.length === 0;
+  const complete = !isEmpty && failed === 0 && !portfolio.error && portfolio.holdings.every((h) => h.value !== null);
+  const today = complete ? { total: net, cash, invested, cards: cardsDebt, debts: debtsTotal } : null;
+  const date = todayRome();
+  const days = [
+    ...history.filter((s) => s.date !== date),
+    ...(today ? [{ date, ...today }] : history.filter((s) => s.date === date)),
+  ];
+
   return {
     banks,
     manual,
@@ -73,7 +95,13 @@ export async function loadOverview(psu: PsuHeaders): Promise<Overview> {
     debts,
     beni,
     history,
-    failed: banks.reduce((n, b) => n + b.accounts.filter((a) => a.amount === null).length, 0),
+    failed,
+    accountsCount: banks.reduce((n, b) => n + b.accounts.length, 0) + manual.length,
+    oldestFetch: banks.map((b) => b.fetchedAt).filter((x): x is string => !!x).sort()[0] ?? null,
+    otherCurrencies: [...other.entries()].sort(([a], [b]) => a.localeCompare(b)),
+    isEmpty,
+    today,
+    days,
     totals: {
       cash,
       holdings,
@@ -88,4 +116,15 @@ export async function loadOverview(psu: PsuHeaders): Promise<Overview> {
       netWithBeni: net + beniValue,
     },
   };
+}
+
+/** Variazione del patrimonio netto rispetto a `n` giorni fa (l'ultima fotografia entro quella data). */
+export function changeSince(days: Snapshot[], n: number): { delta: number; from: string } | null {
+  const last = days.at(-1);
+  if (!last) return null;
+  const limit = new Date(`${last.date}T00:00:00Z`);
+  limit.setUTCDate(limit.getUTCDate() - n);
+  const iso = limit.toISOString().slice(0, 10);
+  const base = days.filter((s) => s.date <= iso).at(-1);
+  return base ? { delta: last.total - base.total, from: base.date } : null;
 }

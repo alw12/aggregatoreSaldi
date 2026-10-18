@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isBroker, syncBroker, type SyncPosition } from "@/lib/portfolio";
+import { bearerMatches } from "@/lib/token";
 
 /**
  * Sincronizzazione delle posizioni di un broker da un job esterno (routine Claude con il
@@ -9,7 +10,7 @@ import { isBroker, syncBroker, type SyncPosition } from "@/lib/portfolio";
  * Sostituisce tutte le posizioni di quel broker.
  */
 export async function POST(request: NextRequest) {
-  if (!(await authorized(request.headers.get("authorization")))) {
+  if (!(await bearerMatches(request.headers.get("authorization"), process.env.SYNC_TOKEN))) {
     await new Promise((r) => setTimeout(r, 1500));
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
@@ -42,20 +43,4 @@ export async function POST(request: NextRequest) {
 
   const result = await syncBroker(body.broker, positions);
   return NextResponse.json({ ok: true, broker: body.broker, ...result });
-}
-
-/** Confronto a tempo costante tramite digest SHA-256, come per la password. */
-async function authorized(header: string | null): Promise<boolean> {
-  const expected = process.env.SYNC_TOKEN;
-  if (!expected || expected.length < 32 || !header?.startsWith("Bearer ")) return false;
-  const enc = new TextEncoder();
-  const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", enc.encode(header.slice(7))),
-    crypto.subtle.digest("SHA-256", enc.encode(expected)),
-  ]);
-  const va = new Uint8Array(a);
-  const vb = new Uint8Array(b);
-  let diff = 0;
-  for (let i = 0; i < va.length; i++) diff |= va[i] ^ vb[i];
-  return diff === 0;
 }

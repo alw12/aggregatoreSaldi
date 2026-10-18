@@ -174,3 +174,35 @@ export function pickBalance(balances: Balance[]): Balance | undefined {
       (PREFERRED.indexOf(a.balance_type) + 100) % 100 - (PREFERRED.indexOf(b.balance_type) + 100) % 100,
   )[0];
 }
+
+export type Party = { name?: string };
+export type Transaction = {
+  entry_reference?: string;
+  transaction_id?: string;
+  transaction_amount: Amount;
+  credit_debit_indicator: "CRDT" | "DBIT";
+  status?: string; // BOOK = contabilizzato, PDNG = in attesa
+  booking_date?: string;
+  value_date?: string;
+  transaction_date?: string;
+  creditor?: Party | null;
+  debtor?: Party | null;
+  creditor_account?: { iban?: string } | null;
+  debtor_account?: { iban?: string } | null;
+  remittance_information?: string[] | null;
+  bank_transaction_code?: { description?: string } | null;
+};
+
+/** Movimenti dal `dateFrom` (YYYY-MM-DD), seguendo la paginazione della banca (al massimo 10 pagine). */
+export async function getTransactions(accountUid: string, dateFrom: string, psu?: PsuHeaders): Promise<Transaction[]> {
+  const out: Transaction[] = [];
+  let key: string | undefined;
+  for (let page = 0; page < 10; page++) {
+    const qs = new URLSearchParams({ date_from: dateFrom, ...(key ? { continuation_key: key } : {}) });
+    const data = await ebFetch<{ transactions?: Transaction[]; continuation_key?: string | null }>(`/accounts/${accountUid}/transactions?${qs}`, { psu });
+    out.push(...(data.transactions ?? []));
+    key = data.continuation_key ?? undefined;
+    if (!key) break;
+  }
+  return out;
+}

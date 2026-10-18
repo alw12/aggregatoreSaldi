@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { TARGET, futureValue, monthlyNeeded, monthsToTarget } from "@/lib/finance";
 
 /** Numeri calcolati sul server dai dati dell'app. */
 export type Facts = {
@@ -18,42 +19,15 @@ export type Facts = {
   overlaps: { index: string; names: string[] }[];
   sameOnBrokers: string[];
   brokers: number;
+  flow: { income: number; spending: number; saved: number; months: number } | null; // media mensile dai movimenti
 };
 
-const TARGET = 1_000_000;
 const STORE = "saldi:planner";
 
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", maximumFractionDigits: 0, useGrouping: "always" }).format(n);
 const pct = (n: number) => new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 0 }).format(n);
 const compact = (n: number) => new Intl.NumberFormat("it-IT", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const date = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-
-const monthlyRate = (annualPct: number) => Math.pow(1 + annualPct / 100, 1 / 12) - 1;
-
-/** Valore dopo m mesi partendo da P e versando C a fine mese. */
-function futureValue(P: number, C: number, annualPct: number, m: number) {
-  const i = monthlyRate(annualPct);
-  if (i === 0) return P + C * m;
-  const g = Math.pow(1 + i, m);
-  return P * g + (C * (g - 1)) / i;
-}
-
-/** Mesi per arrivare al milione; null se non ci si arriva entro 100 anni. */
-function monthsToTarget(P: number, C: number, annualPct: number) {
-  if (P >= TARGET) return 0;
-  for (let m = 1; m <= 1200; m++) if (futureValue(P, C, annualPct, m) >= TARGET) return m;
-  return null;
-}
-
-/** Versamento mensile che serve per arrivarci in `years` anni. */
-function monthlyNeeded(P: number, annualPct: number, years: number) {
-  const n = years * 12;
-  const i = monthlyRate(annualPct);
-  const g = i === 0 ? 1 : Math.pow(1 + i, n);
-  const rest = TARGET - P * g;
-  if (rest <= 0) return 0;
-  return i === 0 ? rest / n : (rest * i) / (g - 1);
-}
 
 const yearsLabel = (m: number | null) => {
   if (m === null) return "oltre 100 anni";
@@ -86,13 +60,17 @@ export function Planner({ facts }: { facts: Facts }) {
       if (saved) setInp((v) => ({ ...v, ...saved }));
     } catch {}
   }, []);
-  const set = (k: keyof Inputs) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const next = { ...inp, [k]: e.target.value };
+  const update = (patch: Partial<Inputs>) => {
+    const next = { ...inp, ...patch };
     setInp(next);
     try {
       localStorage.setItem(STORE, JSON.stringify(next));
     } catch {}
   };
+  const set = (k: keyof Inputs) => (e: React.ChangeEvent<HTMLInputElement>) => update({ [k]: e.target.value });
+  const flow = facts.flow;
+  const flowSaved = flow ? String(Math.max(0, Math.round(flow.saved))) : null;
+  const flowSpese = flow ? String(Math.round(flow.spending)) : null;
 
   const P = Math.max(0, num(inp.start));
   const C = Math.max(0, num(inp.monthly));
@@ -124,6 +102,13 @@ export function Planner({ facts }: { facts: Facts }) {
             <input inputMode="numeric" value={inp.age} onChange={set("age")} placeholder="es. 24" />
           </label>
         </div>
+        {flow && (inp.monthly !== flowSaved || inp.spese !== flowSpese) && (
+          <p className="chart-note">
+            Dai movimenti degli ultimi {flow.months} {flow.months === 1 ? "mese" : "mesi"}: risparmi in media <strong>{eur(flow.saved)}</strong> al mese e
+            ne spendi {eur(flow.spending)}.{" "}
+            <button className="btn btn-ghost" type="button" onClick={() => update({ monthly: flowSaved!, spese: flowSpese! })}>Usa questi numeri</button>
+          </p>
+        )}
         <p className="planner-result">{yearsLabel(months)}</p>
         <p className="chart-note">
           {months === null

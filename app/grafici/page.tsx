@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import { Nav } from "@/app/nav";
-import { AllocationBar, HoldingBars, Meter } from "@/app/charts";
+import { AllocationBar, HoldingBars, Meter, SplitChart } from "@/app/charts";
 import { TrendChart } from "@/app/trend-chart";
 import { psuHeadersFrom } from "@/lib/data";
 import { hasStore } from "@/lib/store";
 import { byAssetClass, byInstrument } from "@/lib/portfolio";
 import { loadOverview, type Overview } from "@/lib/overview";
 import { CATEGORIES } from "@/lib/beni";
+import { recordSnapshot } from "@/lib/history";
 
 export const dynamic = "force-dynamic";
 
@@ -82,7 +84,9 @@ export default async function ChartsPage() {
     ...o.cards.map((c) => ({ key: `c-${c.id}`, label: `Carta ${c.name}`, value: c.balance })),
   ];
   const beniByCat = CATEGORIES.map((c) => ({ key: c, label: c, value: o.beni.filter((p) => p.category === c).reduce((s, p) => s + p.value, 0) }));
-  const days = o.history;
+  const snap = o.today;
+  if (snap) after(() => recordSnapshot(snap));
+  const days = o.days;
   const series = (f: (s: (typeof days)[number]) => number) => days.map((s) => ({ date: s.date, value: f(s) }));
 
   return (
@@ -126,12 +130,31 @@ export default async function ChartsPage() {
       )}
 
       <h2 className="section-head">Nel tempo</h2>
-      <Trend title="Patrimonio netto" note="Ogni giorno in cui apri Saldi" points={series((s) => s.total)} slot={1} />
+      <Trend title="Patrimonio netto" note="Una fotografia al giorno" points={series((s) => s.total)} slot={1} />
       <div className="duo">
         <Trend title="Liquidità" note="Conti e contanti" points={series((s) => s.cash)} slot={1} />
         <Trend title="Investito" note="ETF, crypto e buoni" points={series((s) => s.invested)} slot={2} />
       </div>
       <Trend title="Debiti e carte" note="Quanto devi" points={series((s) => (s.debts ?? 0) + s.cards)} slot="debt" />
+      {t.cash + t.invested > 0 && (
+        <section className="card chart-card">
+          <div className="chart-title">Investito e liquido</div>
+          <SplitChart cash={t.cash} etf={t.holdings} bonds={t.bonds} />
+          {days.length >= 2 && (
+            <div className="split-sub">
+              <p className="chart-note">Quota investita giorno per giorno.</p>
+              <TrendChart
+                points={days
+                  .filter((s) => s.cash + s.invested > 0)
+                  .map((s) => ({ date: s.date, value: Math.max(0, s.invested) / (Math.max(0, s.cash) + Math.max(0, s.invested)) }))}
+                unit="pct"
+                label="Quota investita"
+                slot={2}
+              />
+            </div>
+          )}
+        </section>
+      )}
 
       <h2 className="section-head">Saldi</h2>
       {accounts.length > 0 ? (

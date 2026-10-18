@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_COOKIE, verifyAuthToken } from "@/lib/auth";
 
-// /api/portfolio/sync si autentica da sé con SYNC_TOKEN
-const PUBLIC_PATHS = ["/login", "/api/login", "/api/portfolio/sync"];
+// /api/portfolio/sync si autentica da sé con SYNC_TOKEN, /api/cron/daily con CRON_SECRET
+const PUBLIC_PATHS = ["/login", "/api/login", "/api/portfolio/sync", "/api/cron/daily"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -21,5 +21,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt).*)"],
+  // Manifest, icone e service worker devono essere leggibili senza login (il browser li scarica senza cookie)
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|sw.js|icons/).*)"],
 };

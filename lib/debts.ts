@@ -8,6 +8,8 @@ export type Debt = {
   amount: number; // EUR ancora da restituire
   dueDate: string | null; // YYYY-MM-DD
   note: string | null;
+  rate?: number | null; // TAEG annuo in %, per i prestiti
+  installment?: number | null; // rata mensile in EUR
   updatedAt: string;
 };
 
