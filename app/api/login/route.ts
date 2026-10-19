@@ -12,7 +12,10 @@ export async function POST(request: NextRequest) {
     // Rallenta i tentativi a forza bruta
     await new Promise((r) => setTimeout(r, 1500));
     const url = new URL("/login", request.url);
-    url.searchParams.set("error", "1");
+    // Diagnostica: la password del bot su Vercel ha spazi o a capo ai bordi che chi la digita non mette
+    const bot = process.env.BOT_PASSWORD;
+    const spaces = !!bot && bot.trim() !== bot && password.trim() === bot.trim();
+    url.searchParams.set("error", spaces ? "spaces" : "1");
     if (safeNext !== "/") url.searchParams.set("next", safeNext);
     return NextResponse.redirect(url, 303);
   }
