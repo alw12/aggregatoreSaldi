@@ -3,8 +3,6 @@ import { headers } from "next/headers";
 import { loadDashboard, psuHeadersFrom, type BankView } from "@/lib/data";
 import { hasStore } from "@/lib/store";
 import { loadPortfolio, type HoldingView } from "@/lib/portfolio";
-import { itDate } from "@/lib/loan-math";
-import { loadLoans, type LoanView } from "@/lib/loans";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +37,6 @@ function TopBar() {
         <form method="post" action="/api/refresh"><button className="btn" type="submit">↻ Aggiorna</button></form>
         <Link className="btn" href="/connect">+ Banca</Link>
         <Link className="btn" href="/portfolio">Portafoglio</Link>
-        <Link className="btn" href="/prestiti">Prestiti</Link>
         <form method="post" action="/api/logout"><button className="btn" type="submit">Esci</button></form>
       </div>
     </header>
@@ -62,16 +59,14 @@ export default async function Home() {
 
   let banks: BankView[];
   let portfolio: { holdings: HoldingView[]; error: string | null };
-  let loans: LoanView[];
   try {
     const psu = psuHeadersFrom(await headers());
-    [banks, portfolio, loans] = await Promise.all([
+    [banks, portfolio] = await Promise.all([
       loadDashboard(psu),
       loadPortfolio().then(
         (holdings) => ({ holdings, error: null }),
         (e: unknown) => ({ holdings: [] as HoldingView[], error: e instanceof Error ? e.message : String(e) }),
       ),
-      loadLoans(),
     ]);
   } catch (e) {
     return (
@@ -93,13 +88,12 @@ export default async function Home() {
   const cashEur = totals.find(([c]) => c === "EUR")?.[1] ?? 0;
   const otherCurrencies = totals.filter(([c]) => c !== "EUR");
   const oldest = banks.map((b) => b.fetchedAt).filter(Boolean).sort()[0] ?? null;
-  const debt = loans.reduce((sum, l) => sum + l.residual, 0);
 
   return (
     <main className="container">
       <TopBar />
 
-      {banks.length === 0 && holdings.length === 0 && loans.length === 0 ? (
+      {banks.length === 0 && holdings.length === 0 ? (
         <div className="card empty">
           <p>Nessuna banca collegata.</p>
           <Link className="btn btn-primary" href="/connect">Collega la prima banca</Link>
@@ -108,14 +102,13 @@ export default async function Home() {
         <>
           <section className="card total">
             <div className="label">Totale</div>
-            <div className="value">{fmt(cashEur + invested - debt, "EUR")}</div>
+            <div className="value">{fmt(cashEur + invested, "EUR")}</div>
             {otherCurrencies.map(([cur, amt]) => (
               <div key={cur} className="value">{fmt(amt, cur)}</div>
             ))}
             <div className="split">
               <div><span>Liquidità </span>{fmt(cashEur, "EUR")}</div>
               <div><span>Investimenti </span>{fmt(invested, "EUR")}</div>
-              {loans.length > 0 && <div><span>Prestiti </span>{fmt(-debt, "EUR")}</div>}
             </div>
             <div className="sub">
               {accountsCount} conti su {banks.length} {banks.length === 1 ? "banca" : "banche"} · aggiornato {when(oldest)}
@@ -157,33 +150,6 @@ export default async function Home() {
               ))}
               <div style={{ textAlign: "right", marginTop: 8 }}>
                 <Link className="btn btn-ghost" href="/portfolio">Modifica</Link>
-              </div>
-            </section>
-          )}
-
-          {loans.length > 0 && (
-            <section className="card bank">
-              <div className="bank-head">
-                <div>
-                  <div className="bank-name">Prestiti</div>
-                  <div className="bank-meta">Debito residuo stimato: quanto costerebbe estinguere oggi</div>
-                </div>
-                <div className="bank-sum">{fmt(-debt, "EUR")}</div>
-              </div>
-              {loans.map((l) => (
-                <div key={l.id} className="account">
-                  <div>
-                    <div className="account-label">{l.id}</div>
-                    <div className="bank-meta">
-                      {l.paid}/{l.count} rate · restano {l.left} da {fmt(l.installment, "EUR")} ({fmt(l.remaining, "EUR")})
-                      {l.left > 0 && <> · ultima {itDate(l.lastDue)}</>}
-                    </div>
-                  </div>
-                  <div className="amount neg">{fmt(-l.residual, "EUR")}</div>
-                </div>
-              ))}
-              <div style={{ textAlign: "right", marginTop: 8 }}>
-                <Link className="btn btn-ghost" href="/prestiti">Modifica</Link>
               </div>
             </section>
           )}
