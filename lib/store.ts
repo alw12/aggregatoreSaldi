@@ -53,7 +53,10 @@ export async function removeSession(sessionId: string): Promise<void> {
   await r.del(`saldi:bal:${sessionId}`);
 }
 
-/** Cache dei saldi: le banche PSD2 limitano le letture, quindi non interroghiamo a ogni refresh. */
+/**
+ * Ultima lettura riuscita dei saldi di ogni banca. Non scade: la dashboard la mostra subito e, se è
+ * vecchia, la rilegge dalla banca in background (le banche PSD2 limitano comunque le letture).
+ */
 export type CachedBalances = { fetchedAt: string; data: Record<string, unknown> };
 
 export async function getCachedBalances(sessionId: string): Promise<CachedBalances | null> {
@@ -62,15 +65,26 @@ export async function getCachedBalances(sessionId: string): Promise<CachedBalanc
   return r.get<CachedBalances>(`saldi:bal:${sessionId}`);
 }
 
-export async function setCachedBalances(sessionId: string, value: CachedBalances, ttlSeconds: number) {
+export async function setCachedBalances(sessionId: string, value: CachedBalances) {
   const r = redis();
   if (!r) return;
-  await r.set(`saldi:bal:${sessionId}`, value, { ex: ttlSeconds });
+  await r.set(`saldi:bal:${sessionId}`, value);
 }
 
-export async function clearBalanceCache(): Promise<void> {
+const REFRESH_KEY = "saldi:bal:refreshAt";
+
+/** "Aggiorna": le letture salvate prima di adesso vanno rifatte, ma restano come riserva se la banca non risponde. */
+export async function requestBalanceRefresh(): Promise<void> {
+  await redis()?.set(REFRESH_KEY, new Date().toISOString());
+}
+
+export async function balanceRefreshRequestedAt(): Promise<string | null> {
+  return (await redis()?.get<string>(REFRESH_KEY)) ?? null;
+}
+
+/** Una sola rilettura in background per banca alla volta, anche con più pagine aperte insieme. */
+export async function lockBalanceRefresh(sessionId: string): Promise<boolean> {
   const r = redis();
-  if (!r) return;
-  const ids = Object.keys((await r.hgetall(KEY)) ?? {});
-  if (ids.length) await r.del(...ids.map((id) => `saldi:bal:${id}`));
+  if (!r) return false;
+  return (await r.set(`saldi:bal:lock:${sessionId}`, 1, { nx: true, ex: 60 })) === "OK";
 }

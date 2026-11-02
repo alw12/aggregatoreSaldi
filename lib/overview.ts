@@ -1,5 +1,5 @@
 import "server-only";
-import { loadDashboard, type BankView } from "./data";
+import { loadDashboard, type BankView, type LoadOptions } from "./data";
 import type { PsuHeaders } from "./eb";
 import { loadPortfolio, type HoldingView } from "./portfolio";
 import { loadBonds, type BondView } from "./bonds";
@@ -44,9 +44,9 @@ export type Overview = {
   };
 };
 
-export async function loadOverview(psu: PsuHeaders): Promise<Overview> {
+export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Promise<Overview> {
   const [banks, portfolio, bonds, cards, manual, history, debts, beni] = await Promise.all([
-    loadDashboard(psu),
+    loadDashboard(psu, opts),
     loadPortfolio().then(
       (holdings) => ({ holdings, error: null }),
       (e: unknown) => ({ holdings: [] as HoldingView[], error: e instanceof Error ? e.message : String(e) }),

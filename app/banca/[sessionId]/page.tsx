@@ -42,7 +42,13 @@ export default async function BankPage(props: PageProps<"/banca/[sessionId]">) {
               <div className="bank-name">{a.label}</div>
               <div className="bank-meta">
                 {maskIban(a.iban)}
-                {a.manualAt ? <>{a.iban ? ", " : ""}saldo manuale dal {when(a.manualAt)}</> : a.error ? <>{a.iban ? ", " : ""}{a.error}</> : null}
+                {a.manualAt ? (
+                  <>{a.iban ? ", " : ""}saldo manuale dal {when(a.manualAt)}</>
+                ) : a.staleAt ? (
+                  <>{a.iban ? ", " : ""}banca non raggiungibile, saldo del {when(a.staleAt)}</>
+                ) : a.error ? (
+                  <>{a.iban ? ", " : ""}{a.error}</>
+                ) : null}
               </div>
             </div>
             {a.amount !== null && (

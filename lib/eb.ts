@@ -99,6 +99,8 @@ async function apiJwt(): Promise<string> {
 
 export type PsuHeaders = Record<string, string>;
 
+const EB_TIMEOUT_MS = Number(process.env.EB_TIMEOUT_SECONDS ?? 10) * 1000;
+
 async function ebFetch<T>(path: string, init: RequestInit & { psu?: PsuHeaders } = {}): Promise<T> {
   const { psu, headers, ...rest } = init;
   const res = await fetch(API + path, {
@@ -111,6 +113,8 @@ async function ebFetch<T>(path: string, init: RequestInit & { psu?: PsuHeaders }
       ...(headers ?? {}),
     },
     cache: "no-store",
+    // Una banca lenta non deve bloccare la pagina: oltre il limite si usa l'ultima lettura salvata
+    signal: rest.signal ?? AbortSignal.timeout(EB_TIMEOUT_MS),
   });
   const text = await res.text();
   if (!res.ok) throw new EbError(res.status, text);

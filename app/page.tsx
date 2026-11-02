@@ -241,10 +241,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                   <div key={a.uid} className="account">
                     <div>
                       <div className="account-label">{a.label}</div>
-                      {(a.iban || a.manualAt) && (
+                      {(a.iban || a.manualAt || a.staleAt) && (
                         <div className="account-iban">
                           {maskIban(a.iban)}
                           {a.manualAt && <>{a.iban ? ", " : ""}saldo manuale del {when(a.manualAt)}</>}
+                          {!a.manualAt && a.staleAt && <>{a.iban ? ", " : ""}banca non raggiungibile, saldo del {when(a.staleAt)}</>}
                         </div>
                       )}
                     </div>

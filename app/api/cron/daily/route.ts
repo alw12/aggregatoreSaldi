@@ -21,8 +21,9 @@ export async function GET(request: NextRequest) {
   const today = todayRome();
   const run: CronRun = { at: new Date().toISOString(), snapshot: false, alerts: 0, notified: 0 };
   try {
-    // Senza header PSU: la banca conta la lettura nel limite di 4 al giorno, una basta
-    const o = await loadOverview({});
+    // Senza header PSU: la banca conta la lettura nel limite di 4 al giorno, una basta.
+    // live: la fotografia del giorno va fatta con saldi letti adesso, non con l'ultima lettura salvata
+    const o = await loadOverview({}, { live: true });
     if (o.today) {
       await recordSnapshot(o.today);
       run.snapshot = true;

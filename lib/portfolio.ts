@@ -43,6 +43,8 @@ export type HoldingView = Holding & {
 
 const KEY = "saldi:portfolio";
 const PRICE_TTL = 15 * 60;
+// Una fonte di prezzi lenta non deve bloccare la pagina: si passa alla riserva o al prezzo manuale
+const PRICE_TIMEOUT_MS = 6000;
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Safari/537.36";
 const YAHOO = process.env.YAHOO_BASE_URL ?? "https://query1.finance.yahoo.com";
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
@@ -147,7 +149,7 @@ export async function getHolding(broker: Broker, id: string): Promise<Holding | 
 }
 
 async function yahoo<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, cache: "no-store" });
+  const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(PRICE_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`Yahoo ${res.status}`);
   return (await res.json()) as T;
 }
@@ -244,7 +246,7 @@ async function priceEur(symbol: string): Promise<{ price: number; time: string }
 }
 
 async function json<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, cache: "no-store" });
+  const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" }, cache: "no-store", signal: AbortSignal.timeout(PRICE_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`${new URL(url).hostname} ${res.status}`);
   return (await res.json()) as T;
 }
@@ -261,7 +263,7 @@ async function justEtfPrice(isin: string): Promise<{ price: number; time: string
 /** Nome dello strumento dal titolo della pagina justETF ("Nome | TICKER | ISIN"). */
 async function justEtfName(isin: string): Promise<string | null> {
   try {
-    const res = await fetch(`${JUSTETF}/it/etf-profile.html?isin=${isin}`, { headers: { "User-Agent": UA }, cache: "no-store" });
+    const res = await fetch(`${JUSTETF}/it/etf-profile.html?isin=${isin}`, { headers: { "User-Agent": UA }, cache: "no-store", signal: AbortSignal.timeout(PRICE_TIMEOUT_MS) });
     const title = (await res.text()).match(/<title>([^<|]+)/i)?.[1]?.trim();
     return title ? title.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"') : null;
   } catch {
