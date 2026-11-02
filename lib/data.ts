@@ -33,9 +33,10 @@ export type BankView = {
   expired: boolean;
   fetchedAt: string | null;
   accounts: AccountView[];
+  refreshing?: boolean; // lettura vecchia mostrata subito, la banca viene riletta in background
 };
 
-const CACHE_SECONDS = Number(process.env.BALANCE_CACHE_MINUTES ?? 30) * 60;
+const CACHE_SECONDS = Number(process.env.BALANCE_CACHE_MINUTES ?? 5) * 60;
 const FORCE_WINDOW_MS = 2 * 60_000;
 
 function describeError(e: unknown): string {
@@ -119,7 +120,7 @@ async function loadBank(s: StoredSession, psu: PsuHeaders, refreshAt: string | n
       after(async () => {
         if (await lockBalanceRefresh(s.sessionId)) await readBank(s, psu, cached).catch(() => undefined);
       });
-      return { ...base, fetchedAt: cached.fetchedAt, accounts: cached.data.accounts as AccountView[] };
+      return { ...base, fetchedAt: cached.fetchedAt, accounts: cached.data.accounts as AccountView[], refreshing: true };
     }
   }
 

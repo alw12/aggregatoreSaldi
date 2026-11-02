@@ -9,6 +9,7 @@ import { changeSince, loadOverview, type Overview } from "@/lib/overview";
 import { computeAlerts } from "@/lib/alerts";
 import { QuickEdit } from "./quick-edit";
 import { Nav } from "./nav";
+import { AutoRefresh } from "./auto-refresh";
 import { AllocationBar } from "./charts";
 import { TrendChart } from "./trend-chart";
 
@@ -133,6 +134,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   return (
     <main className="container">
       <Nav current="/" />
+      <AutoRefresh pending={o.refreshing} />
 
       {actionError && <div className="notice error">{actionError}</div>}
 

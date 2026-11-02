@@ -1,4 +1,5 @@
 import { Nav } from "@/app/nav";
+import { AutoRefresh } from "@/app/auto-refresh";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { loadDashboard, psuHeadersFrom } from "@/lib/data";
@@ -24,6 +25,7 @@ export default async function BankPage(props: PageProps<"/banca/[sessionId]">) {
   return (
     <main className="container">
       <Nav current="/" />
+      <AutoRefresh pending={!!bank.refreshing} />
       <h1 className="page-title">{bank.bank}</h1>
 
       {error && <div className="notice error">{error}</div>}

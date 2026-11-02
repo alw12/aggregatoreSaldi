@@ -21,6 +21,7 @@ export type Overview = {
   beni: Possession[];
   history: Snapshot[];
   failed: number; // conti non letti, esclusi dai totali
+  refreshing: boolean; // qualche banca è in rilettura in background
   accountsCount: number;
   oldestFetch: string | null; // lettura più vecchia tra le banche collegate
   otherCurrencies: [string, number][]; // saldi non in EUR, fuori dal totale
@@ -96,6 +97,7 @@ export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Pro
     beni,
     history,
     failed,
+    refreshing: banks.some((b) => b.refreshing),
     accountsCount: banks.reduce((n, b) => n + b.accounts.length, 0) + manual.length,
     oldestFetch: banks.map((b) => b.fetchedAt).filter((x): x is string => !!x).sort()[0] ?? null,
     otherCurrencies: [...other.entries()].sort(([a], [b]) => a.localeCompare(b)),
