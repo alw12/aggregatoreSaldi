@@ -6,6 +6,7 @@ Next.js 16 · deploy su Vercel · protetta da password · storage su Upstash Red
 ## Come funziona
 
 - **Login**: password unica (`APP_PASSWORD`), cookie `httpOnly` firmato (HS256, 7 giorni). Il `proxy.ts` blocca ogni pagina e API senza cookie valido.
+- **Utente bot** (facoltativo): con `BOT_PASSWORD` si può entrare anche con una seconda password, pensata per bot e automazioni. Le sue sessioni sono firmate con una chiave propria: cambiare o togliere `BOT_PASSWORD` disconnette solo il bot, senza toccare le sessioni del proprietario. Da script: `curl -c cookie.txt -d password=$BOT_PASSWORD https://<host>/api/login`, poi `curl -b cookie.txt https://<host>/api/portfolio`.
 - **Collegamento banca**: `/connect` → Enable Banking → SCA sulla tua banca → `/api/eb/callback` salva la sessione (id, conti, scadenza consenso) su Redis.
 - **Saldi**: la dashboard legge `/accounts/{uid}/balances` per ogni conto, con header PSU (utente presente, quindi niente limite di 4 letture/giorno), e tiene i saldi in cache per 30 minuti. "Aggiorna" svuota la cache.
 - **Portafoglio**: posizioni per broker (Trade Republic, Scalable Capital) a prezzi live Yahoo, con riserva justETF/CoinGecko. Con il prezzo medio di carico mostra guadagno e perdita; somma lo stesso ISIN tenuto su più broker e divide per tipo (azioni, oro, materie prime, crypto…).
@@ -32,6 +33,7 @@ Next.js 16 · deploy su Vercel · protetta da password · storage su Upstash Red
 2. Storage → Marketplace → **Upstash Redis** (piano free) → collegalo al progetto (imposta `KV_REST_API_URL` / `KV_REST_API_TOKEN`).
 3. Environment Variables:
    - `APP_PASSWORD`: la tua password
+   - `BOT_PASSWORD` (opzionale): password dell'utente bot
    - `AUTH_SECRET`: `openssl rand -base64 48`
    - `EB_APP_ID`: Application ID
    - `EB_PRIVATE_KEY`: `base64 -w0 chiave.pem` (Linux) / `base64 -i chiave.pem` (macOS)
