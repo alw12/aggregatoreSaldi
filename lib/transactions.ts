@@ -2,6 +2,7 @@ import "server-only";
 import { EbError, getTransactions, type PsuHeaders, type Transaction } from "./eb";
 import { listSessions, redis } from "./store";
 import { classify, ownPattern, type Movement } from "./flows";
+import { applyLoanPayments } from "./debts";
 
 /** Movimenti di tutti i conti collegati, ultimi ~4 mesi, con cache di 6 ore (le banche limitano le letture). */
 
@@ -99,7 +100,10 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
       }),
     ),
   );
-  return { moves: lists.flat().sort((a, b) => b.date.localeCompare(a.date)), errors, fetchedAt: stamps.sort()[0] ?? null };
+  const moves = lists.flat().sort((a, b) => b.date.localeCompare(a.date));
+  // Le rate dei prestiti con "scala in automatico" vengono tolte dal debito appena compaiono
+  await applyLoanPayments(moves).catch(() => 0);
+  return { moves, errors, fetchedAt: stamps.sort()[0] ?? null };
 }
 
 export async function clearMovementsCache(): Promise<void> {

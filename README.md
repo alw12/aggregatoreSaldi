@@ -12,8 +12,8 @@ Next.js 16 · deploy su Vercel · protetta da password · storage su Upstash Red
 - **Portafoglio**: posizioni per broker (Trade Republic, Scalable Capital) a prezzi live Yahoo, con riserva justETF/CoinGecko. Con il prezzo medio di carico mostra guadagno e perdita; somma lo stesso ISIN tenuto su più broker e divide per tipo (azioni, oro, materie prime, crypto…).
 - **Sincronizzazione Scalable**: una routine Claude settimanale legge le posizioni dal connettore Scalable e le invia a `POST /api/portfolio/sync` con `Authorization: Bearer $SYNC_TOKEN`. Body `{ "broker": "Scalable Capital", "positions": [{ "id": "ISIN", "name": "…", "qty": 1.23, "avgCost": 98.4, "price": 101.2 }] }`: sostituisce tutte le posizioni di quel broker.
 - **Importa elenco**: in Portafoglio si incolla un elenco "ISIN quote [prezzo medio]" (tab, `;` o spazi; crypto TR `XF000BTC0017` → `BTC-EUR`) con anteprima; aggiunge/aggiorna o sostituisce le posizioni di un broker.
-- **Movimenti**: `/accounts/{uid}/transactions` degli ultimi 120 giorni (cache 6 ore): entrate, uscite, risparmio investito (bonifici verso broker) e tasso di risparmio mese per mese. Le medie alimentano il simulatore di *Verso il milione*.
-- **Debiti**: con rata e TAEG mostra quando finisce il prestito, gli interessi residui e quanto si risparmia restituendo prima (penale massima art. 125-sexies TUB).
+- **Movimenti**: `/accounts/{uid}/transactions` degli ultimi 120 giorni (cache 6 ore): entrate, uscite, risparmio investito (bonifici verso broker) e tasso di risparmio mese per mese. Le medie alimentano il simulatore di *Verso il milione*. **Spese per categoria**: torta delle uscite (ultimi 30 giorni o mese scelto) divise per categoria riconosciuta dal nome della controparte (`lib/categories.ts`); le rate dei debiti si riconoscono dall'importo. Toccando una categoria si vedono le sue spese.
+- **Debiti**: con rata e TAEG mostra quando finisce il prestito, gli interessi residui e quanto si risparmia restituendo prima (penale massima art. 125-sexies TUB). Con **Scala la rata dal debito** l'importo scende da solo quando la rata passa sul conto: addebito in EUR con lo stesso importo al centesimo, al massimo una volta al mese, solo dalla data di attivazione (o dell'ultima modifica dell'importo).
 - **Job giornaliero**: Vercel Cron (`vercel.json`, 19:00 UTC) chiama `GET /api/cron/daily` con `Authorization: Bearer $CRON_SECRET`: salva la fotografia del patrimonio anche nei giorni in cui non apri l'app e invia le notifiche push degli avvisi nuovi (consenso in scadenza, carta oltre l'80% o in addebito, debito in scadenza, buono scaduto). Ogni avviso si ripete al massimo una volta a settimana.
 - **App sul telefono**: manifest e icone per "Aggiungi alla schermata Home"; su iPhone le notifiche push funzionano solo così (iOS 16.4+). Il service worker (`public/sw.js`) gestisce solo le notifiche, nessuna cache.
 - **Consenso**: dura al massimo quanto consente la banca (di solito 180 giorni). Da 14 giorni prima della scadenza compare un avviso; per rinnovare basta ricollegare la banca.
@@ -47,7 +47,7 @@ Next.js 16 · deploy su Vercel · protetta da password · storage su Upstash Red
 cp .env.example .env.local   # compila i valori
 npm install
 npm run dev
-npm test        # vitest: numeri, simulatore, prestiti, import, movimenti, avvisi
+npm test        # vitest: numeri, simulatore, prestiti, rate automatiche, categorie, import, movimenti, avvisi
 ```
 
 ## Note di sicurezza

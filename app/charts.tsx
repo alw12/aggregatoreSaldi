@@ -5,6 +5,8 @@
  * informazione.
  */
 
+import type { ReactNode } from "react";
+
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
 const pct = (n: number) => new Intl.NumberFormat("it-IT", { style: "percent", maximumFractionDigits: 1 }).format(n);
 
@@ -171,6 +173,74 @@ export function FlowChart({ rows }: { rows: FlowRow[] }) {
           ))}
         </div>
       ))}
+    </figure>
+  );
+}
+
+export type PiePart = { key: string; label: string; value: number; color: number; detail?: ReactNode };
+
+/**
+ * Torta (ad anello) con il totale al centro e accanto la legenda con importo e percentuale di ogni
+ * fetta: i valori sono sempre scritti, il colore non è l'unica informazione. `color` 1…8 = --c1…--c8,
+ * 0 = grigio (per "Altro"). Con `detail` la riga della legenda si apre e mostra cosa c'è dentro.
+ */
+export function PieChart({ parts, caption, center }: { parts: PiePart[]; caption?: string; center: string }) {
+  const shown = parts.filter((p) => p.value > 0);
+  const sum = shown.reduce((s, p) => s + p.value, 0);
+  if (sum <= 0) return null;
+  // pathLength 100: lunghezze in percentuale; 0,8 di spazio tra le fette (~2px)
+  const gap = shown.length > 1 ? 0.8 : 0;
+  const shares = shown.map((p) => (p.value / sum) * 100);
+  const arcs = shown.map((p, i) => ({
+    ...p,
+    start: shares.slice(0, i).reduce((s, x) => s + x, 0),
+    len: Math.max(0.3, shares[i] - gap),
+  }));
+  return (
+    <figure className="pie">
+      {caption && <figcaption className="chart-title">{caption}</figcaption>}
+      <div className="pie-body">
+        <svg className="pie-svg" viewBox="0 0 120 120" role="img" aria-label={arcs.map((a) => `${a.label} ${pct(a.value / sum)}`).join(", ")}>
+          <circle cx="60" cy="60" r="46" className="pie-track" />
+          {arcs.map((a) => (
+            <circle
+              key={a.key}
+              cx="60"
+              cy="60"
+              r="46"
+              pathLength={100}
+              className={`pie-arc c${a.color}`}
+              strokeDasharray={`${a.len} ${100 - a.len}`}
+              strokeDashoffset={-a.start}
+              transform="rotate(-90 60 60)"
+            >
+              <title>{`${a.label}: ${eur(a.value)} (${pct(a.value / sum)})`}</title>
+            </circle>
+          ))}
+          <text x="60" y="57" className="pie-total">{center}</text>
+          <text x="60" y="72" className="pie-sub">in tutto</text>
+        </svg>
+        <div className="pie-legend">
+          {arcs.map((a) => {
+            const row = (
+              <>
+                <span className={`swatch c${a.color}`} aria-hidden />
+                <span className="alloc-label">{a.label}</span>
+                <span className="alloc-pct">{pct(a.value / sum)}</span>
+                <span className="alloc-value">{eur(a.value)}</span>
+              </>
+            );
+            return a.detail ? (
+              <details key={a.key} className="pie-item">
+                <summary className="alloc-item">{row}</summary>
+                <div className="pie-detail">{a.detail}</div>
+              </details>
+            ) : (
+              <div key={a.key} className="pie-item alloc-item">{row}</div>
+            );
+          })}
+        </div>
+      </div>
     </figure>
   );
 }

@@ -8,6 +8,7 @@ import { listManualAccounts, type ManualAccount } from "./manual";
 import { listDebts, type Debt } from "./debts";
 import { listPossessions, type Possession } from "./beni";
 import { loadHistory, todayRome, type Snapshot } from "./history";
+import { loadMovements } from "./transactions";
 
 /** Tutti i dati dell'app in una volta, con gli stessi totali della Panoramica. */
 export type Overview = {
@@ -56,7 +57,8 @@ export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Pro
     loadCards(),
     listManualAccounts(),
     loadHistory().catch(() => [] as Snapshot[]),
-    listDebts(),
+    // Movimenti solo dalla cache (nessuna lettura in banca): scalano le rate passate prima di leggere i debiti
+    loadMovements(null).catch(() => null).then(() => listDebts()),
     listPossessions(),
   ]);
 

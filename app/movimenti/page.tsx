@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { Nav } from "@/app/nav";
-import { FlowChart, HoldingBars } from "@/app/charts";
+import { FlowChart, HoldingBars, PieChart } from "@/app/charts";
 import { psuHeadersFrom } from "@/lib/data";
 import { hasStore, listSessions } from "@/lib/store";
 import { loadMovements, type MovementsResult } from "@/lib/transactions";
 import { averageMonth, monthlyFlows, topSpending, type Kind } from "@/lib/flows";
 import { todayRome } from "@/lib/history";
+import { spendingByCategory } from "@/lib/categories";
+import { listDebts } from "@/lib/debts";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +25,19 @@ const daysBefore = (iso: string, n: number) => {
 const TAG: Partial<Record<Kind, string>> = { invest: "messo da parte", internal: "giroconto" };
 
 /** Entrate e uscite dai conti collegati: quanto risparmi davvero ogni mese e dove vanno i soldi. */
-export default async function MovementsPage() {
+export default async function MovementsPage({ searchParams }: PageProps<"/movimenti">) {
+  const sp = await searchParams;
+  const period = typeof sp.periodo === "string" && /^\d{4}-\d{2}$/.test(sp.periodo) ? sp.periodo : "30";
   let data: MovementsResult | null = null;
+  let installments: number[] = [];
   let hasBanks = false;
   let error: string | null = null;
   if (hasStore()) {
     try {
       hasBanks = (await listSessions()).length > 0;
       if (hasBanks) data = await loadMovements(psuHeadersFrom(await headers()));
+      // Le rate dei prestiti si riconoscono dall'importo, qualunque sia la controparte
+      installments = (await listDebts().catch(() => [])).flatMap((d) => (d.installment ? [d.installment] : []));
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -41,6 +48,10 @@ export default async function MovementsPage() {
   const avg = averageMonth(flows, today.slice(0, 7));
   const since = daysBefore(today, 30);
   const top = data ? topSpending(data.moves, since) : [];
+  const months = flows.map((f) => f.month).reverse().slice(0, 4);
+  const [catFrom, catTo] = period === "30" ? [since, today] : [`${period}-01`, `${period}-31`];
+  const categories = data ? spendingByCategory(data.moves, catFrom, catTo, installments) : [];
+  const catTotal = categories.reduce((t, c) => t + c.total, 0);
 
   return (
     <main className="container">
@@ -96,6 +107,45 @@ export default async function MovementsPage() {
               <p className="chart-note" style={{ margin: "14px 0 0" }}>
                 Con {eur0(Math.max(0, avg.saved))} al mese il simulatore in <Link href="/consigli">Verso il milione</Link> usa i tuoi numeri veri.
               </p>
+            )}
+          </section>
+
+          <section className="card chart-card" id="categorie">
+            <div className="chart-title">Spese per categoria</div>
+            <nav className="periods" aria-label="Periodo">
+              <Link className="period" href="/movimenti#categorie" aria-current={period === "30" ? "page" : undefined}>Ultimi 30 giorni</Link>
+              {months.map((m) => (
+                <Link key={m} className="period" href={`/movimenti?periodo=${m}#categorie`} aria-current={period === m ? "page" : undefined}>
+                  {monthName(m)}
+                </Link>
+              ))}
+            </nav>
+            {catTotal > 0 ? (
+              <>
+                <p className="chart-note">Tocca una categoria per vedere le spese che contiene. Le categorie si riconoscono dal nome di chi incassa; quello che non riconosco finisce in Altro.</p>
+                <PieChart
+                  center={eur0(catTotal)}
+                  parts={categories.map((c) => ({
+                    key: c.key,
+                    label: `${c.label} (${c.moves.length})`,
+                    value: c.total,
+                    color: c.color,
+                    detail: (
+                      <div className="tx-list">
+                        {c.moves.slice(0, 30).map((m) => (
+                          <div key={m.id} className="tx">
+                            <span className="tx-party">{m.party}</span>
+                            <span className="tx-meta">{shortDate(m.date)}, {m.account}</span>
+                            <span className="tx-amount">{eur(m.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ),
+                  }))}
+                />
+              </>
+            ) : (
+              <p className="chart-note" style={{ marginBottom: 0 }}>Nessuna spesa in questo periodo.</p>
             )}
           </section>
 

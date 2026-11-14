@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { Nav } from "@/app/nav";
 import { listDebts, type Debt } from "@/lib/debts";
+import { psuHeadersFrom } from "@/lib/data";
+import { loadMovements } from "@/lib/transactions";
 import { LoanPlan } from "./loan-plan";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +21,8 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
   let debts: Debt[] = [];
   let loadError: string | null = null;
   try {
+    // Legge i movimenti (cache di 6 ore) per scalare le rate passate prima di mostrare gli importi
+    await loadMovements(psuHeadersFrom(await headers())).catch(() => null);
     debts = await listDebts();
   } catch (e) {
     loadError = e instanceof Error ? e.message : String(e);
@@ -49,6 +54,11 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
                   {d.installment ? <>{eur(d.installment)} al mese{d.rate != null ? `, TAEG ${it(d.rate)}%` : ""}</> : null}
                   {d.dueDate && <>{d.installment ? ", " : ""}entro il {day(d.dueDate)}</>}
                   {d.note && <>{d.dueDate || d.installment ? ". " : ""}{d.note}</>}
+                </div>
+              )}
+              {d.autoPay && (
+                <div className="account-iban">
+                  Rata scalata in automatico{d.autoPay.last ? `, ultima il ${day(d.autoPay.last)}` : ` quando passa sul conto (dal ${day(d.autoPay.since)})`}
                 </div>
               )}
             </div>
@@ -97,6 +107,11 @@ export default async function DebtsPage({ searchParams }: PageProps<"/debiti">) 
           <input name="rate" inputMode="decimal" placeholder="es. 9,9" defaultValue={editing?.rate != null ? it(editing.rate) : undefined} />
         </label>
         <p className="form-hint">Con rata e TAEG vedi quando finisci di pagare e quanto risparmi restituendo prima.</p>
+        <label className="check">
+          <input type="checkbox" name="autoPay" defaultChecked={!!editing?.autoPay} />
+          Scala la rata dal debito quando passa sul conto
+        </label>
+        <p className="form-hint">Riconosco l’addebito dall’importo esatto della rata, una volta al mese. Contano le rate da oggi: scrivi l’importo che resta adesso.</p>
         <label>
           Nota (facoltativo)
           <input name="note" maxLength={300} placeholder="es. 50 € al mese" defaultValue={editing?.note ?? undefined} />
