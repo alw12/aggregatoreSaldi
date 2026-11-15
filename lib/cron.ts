@@ -2,7 +2,7 @@ import "server-only";
 import { redis } from "./store";
 
 /** Esito dell'ultimo job giornaliero (app/api/cron/daily), mostrato nella pagina Avvisi. */
-export type CronRun = { at: string; snapshot: boolean; alerts: number; notified: number; error?: string };
+export type CronRun = { at: string; snapshot: boolean; alerts: number; notified: number; report?: string | null; error?: string };
 
 const KEY = "saldi:cron:last";
 

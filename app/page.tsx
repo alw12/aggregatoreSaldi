@@ -7,7 +7,8 @@ import { byAssetClass } from "@/lib/portfolio";
 import { recordSnapshot, todayRome } from "@/lib/history";
 import { changeSince, loadOverview, type Overview } from "@/lib/overview";
 import { computeAlerts } from "@/lib/alerts";
-import { runway } from "@/lib/budget";
+import { addMonths, runway } from "@/lib/budget";
+import { reportMonths } from "@/lib/report";
 import { loadMovements } from "@/lib/transactions";
 import { RunwayCard } from "./runway";
 import { QuickEdit } from "./quick-edit";
@@ -128,6 +129,9 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const today = todayRome();
   const alerts = computeAlerts(o, today);
   const autonomy = runway(t.cash, t.cards, o.moves, today);
+  // Nella prima settimana del mese: il report del mese appena finito
+  const lastMonth = addMonths(today.slice(0, 7), -1);
+  const reportReady = Number(today.slice(8, 10)) <= 7 && reportMonths(o.moves, today).includes(lastMonth);
   // La Panoramica legge i movimenti solo dalla cache (6 ore): se è scaduta la riempie dopo la risposta,
   // così alla prossima apertura ci sono i mesi di autonomia senza rallentare questa
   if (!o.moves.length && banks.length) {
@@ -205,6 +209,16 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {reportReady && (
+            <Link href={`/report?mese=${lastMonth}`} className="report-ready">
+              <span>
+                Il report di{" "}
+                <strong>{new Date(`${lastMonth}-01T00:00:00Z`).toLocaleDateString("it-IT", { month: "long", timeZone: "UTC" })}</strong> è pronto
+              </span>
+              <span aria-hidden>→</span>
+            </Link>
           )}
 
           {autonomy && <RunwayCard r={autonomy} link={<> Dettagli in <Link href="/budget">Budget</Link>.</>} />}

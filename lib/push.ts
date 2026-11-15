@@ -89,3 +89,17 @@ export async function notifyAlerts(alerts: Alert[], today: string): Promise<numb
   if (old.length) await r.hdel(SENT, ...old);
   return fresh.length;
 }
+
+/**
+ * Report del mese: una sola notifica per mese. Se il job del 1° non riesce a mandarla (nessun dispositivo
+ * raggiungibile, errore) ci riprova i giorni dopo; una volta mandata non si ripete.
+ */
+export async function sendMonthlyReport(month: string, msg: PushMessage): Promise<boolean> {
+  const r = redis();
+  if (!r || !configured()) return false;
+  const key = `saldi:report:sent:${month}`;
+  if (await r.get(key)) return false;
+  if ((await sendToAll(msg)) === 0) return false;
+  await r.set(key, new Date().toISOString(), { ex: 60 * 86400 });
+  return true;
+}

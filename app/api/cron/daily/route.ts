@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { loadOverview } from "@/lib/overview";
 import { recordSnapshot, todayRome } from "@/lib/history";
 import { computeAlerts } from "@/lib/alerts";
-import { notifyAlerts } from "@/lib/push";
+import { notifyAlerts, sendMonthlyReport } from "@/lib/push";
+import { monthReport, reportMessage, reportMonths } from "@/lib/report";
+import { addMonths } from "@/lib/budget";
 import { saveCronRun, type CronRun } from "@/lib/cron";
 import { bearerMatches } from "@/lib/token";
 import { loadMovements } from "@/lib/transactions";
@@ -35,6 +37,13 @@ export async function GET(request: NextRequest) {
     const alerts = computeAlerts(o, today);
     run.alerts = alerts.length;
     run.notified = await notifyAlerts(alerts, today);
+    // Dal 1° al 5 del mese: report del mese appena finito, una volta sola
+    const month = addMonths(today.slice(0, 7), -1);
+    if (Number(today.slice(8, 10)) <= 5 && reportMonths(o.moves, today).includes(month)) {
+      const cat = { installments: o.debts.flatMap((d) => (d.installment ? [d.installment] : [])), rules: o.catRules };
+      const report = monthReport(o.moves, month, today, cat, o.budget.goal);
+      if (await sendMonthlyReport(month, { ...reportMessage(report), url: `/report?mese=${month}`, tag: "saldi-report" })) run.report = month;
+    }
   } catch (e) {
     run.error = e instanceof Error ? e.message.slice(0, 300) : String(e);
   }

@@ -664,3 +664,26 @@ div.pie-item { padding: 6px 4px; }
 .car-bar > span { display: block; height: 100%; border-radius: 0 4px 4px 0; }
 .car-figs { display: grid; justify-items: end; text-align: right; }
 @media (max-width: 479px) { .car-line > summary { grid-template-columns: 12px minmax(0, 1fr) 6em; } .car-bar { display: none; } }
+
+/* ── Report del mese ─────────────────────────────────── */
+
+.report-month { font-size: 20px; font-weight: 600; text-transform: capitalize; margin: 4px 0 10px; }
+.report-line { margin: -6px 0 16px; }
+.delta { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.delta.better { color: var(--accent); }
+.delta.worse { color: var(--negative); }
+.delta.same { color: var(--muted); font-weight: 400; }
+.rep-rows { display: grid; }
+.rep-row { display: grid; grid-template-columns: 12px minmax(0, 10em) minmax(0, 1fr) 8.5em; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--border); }
+.rep-row:first-child { border-top: 0; }
+.rep-label { display: grid; min-width: 0; }
+.rep-bars { display: grid; gap: 3px; }
+.rep-now { display: block; height: 8px; border-radius: 0 4px 4px 0; }
+.rep-prev { display: block; height: 2px; border-radius: 1px; background: var(--faint); }
+.rep-figs { display: grid; justify-items: end; text-align: right; }
+@media (max-width: 479px) { .rep-row { grid-template-columns: 12px minmax(0, 1fr) 8em; } .rep-bars { display: none; } }
+.report-ready {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -12px 0 14px; padding: 12px 16px;
+  border-radius: var(--radius); background: var(--accent-soft); color: var(--accent); font-size: 14px;
+}
+.report-ready:hover { text-decoration: none; filter: brightness(1.03); }
