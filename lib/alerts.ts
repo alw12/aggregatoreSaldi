@@ -1,4 +1,5 @@
 import type { Overview } from "./overview";
+import { BUDGET_WARN, budgetLines } from "./budget";
 
 /** Qualcosa da sistemare: mostrato in panoramica e inviato come notifica dal job giornaliero. */
 export type Alert = {
@@ -58,6 +59,23 @@ export function computeAlerts(o: Overview, today: string): Alert[] {
   }
 
   for (const b of o.bonds) if (b.matured) out.push({ key: `bond:${b.id}`, level: "warn", text: `Il buono ${b.name} è scaduto: non frutta più, incassalo.`, href: "/buoni" });
+
+  // Budget per categoria: un avviso all'80% e uno quando si supera, una volta al mese ciascuno
+  const monthName = new Date(`${today.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString("it-IT", { month: "long", timeZone: "UTC" });
+  const installments = o.debts.flatMap((d) => (d.installment ? [d.installment] : []));
+  for (const b of budgetLines(o.moves ?? [], o.budget?.limits ?? {}, today, installments)) {
+    const ratio = b.spent / b.limit;
+    if (ratio < BUDGET_WARN) continue;
+    const over = ratio >= 1;
+    out.push({
+      key: `budget:${b.key}:${today.slice(0, 7)}:${over ? "100" : "80"}`,
+      level: over ? "error" : "warn",
+      text: over
+        ? `${b.label}: hai speso ${eur(b.spent)}, oltre il budget di ${monthName} (${eur(b.limit)}).`
+        : `${b.label}: hai già speso ${eur(b.spent)} dei ${eur(b.limit)} di budget di ${monthName}.`,
+      href: "/budget",
+    });
+  }
 
   if (o.portfolioError) out.push({ key: `portfolio:${today}`, level: "warn", text: "Prezzi del portafoglio non disponibili al momento.", href: "/portfolio" });
 

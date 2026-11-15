@@ -29,6 +29,18 @@ describe("avvisi", () => {
     expect(alerts[0].level).toBe("error");
     expect(alerts.find((a) => a.key.startsWith("charge"))!.text).toContain("la liquidità non basta");
   });
+  it("budget di categoria: avviso all'80% e quando si supera", () => {
+    const mv = (date: string, amount: number, party: string) => ({ id: date + party, date, amount, currency: "EUR", party, account: "B, C", kind: "out" as const });
+    const alerts = computeAlerts(
+      base({
+        moves: [mv("2026-10-03", -170, "Conad"), mv("2026-10-05", -90, "Pizzeria Da Mario")],
+        budget: { goal: null, limits: { spesa: 200, ristoranti: 80 } },
+      }),
+      "2026-10-18",
+    );
+    expect(alerts.map((a) => a.key)).toEqual(["budget:ristoranti:2026-10:100", "budget:spesa:2026-10:80"]);
+    expect(alerts[0].text).toContain("oltre il budget di ottobre");
+  });
   it("tutto in ordine: nessun avviso", () => {
     expect(computeAlerts(base({}), "2026-10-18")).toEqual([]);
   });

@@ -9,6 +9,9 @@ import { listDebts, type Debt } from "./debts";
 import { listPossessions, type Possession } from "./beni";
 import { loadHistory, todayRome, type Snapshot } from "./history";
 import { loadMovements } from "./transactions";
+import type { Movement } from "./flows";
+import { getBudget } from "./budget-store";
+import { EMPTY_BUDGET, type BudgetSettings } from "./budget";
 
 /** Tutti i dati dell'app in una volta, con gli stessi totali della Panoramica. */
 export type Overview = {
@@ -20,6 +23,9 @@ export type Overview = {
   cards: CreditCardView[];
   debts: Debt[];
   beni: Possession[];
+  /** Movimenti dalla cache (vuoto se scaduta) e impostazioni del budget, per gli avvisi sul budget. */
+  moves: Movement[];
+  budget: BudgetSettings;
   history: Snapshot[];
   failed: number; // conti non letti, esclusi dai totali
   refreshing: boolean; // qualche banca è in rilettura in background
@@ -47,7 +53,7 @@ export type Overview = {
 };
 
 export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Promise<Overview> {
-  const [banks, portfolio, bonds, cards, manual, history, debts, beni] = await Promise.all([
+  const [banks, portfolio, bonds, cards, manual, history, { moves, debts }, beni, budget] = await Promise.all([
     loadDashboard(psu, opts),
     loadPortfolio().then(
       (holdings) => ({ holdings, error: null }),
@@ -58,8 +64,11 @@ export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Pro
     listManualAccounts(),
     loadHistory().catch(() => [] as Snapshot[]),
     // Movimenti solo dalla cache (nessuna lettura in banca): scalano le rate passate prima di leggere i debiti
-    loadMovements(null).catch(() => null).then(() => listDebts()),
+    loadMovements(null)
+      .catch(() => null)
+      .then(async (mv) => ({ moves: mv?.moves ?? [], debts: await listDebts() })),
     listPossessions(),
+    getBudget().catch(() => EMPTY_BUDGET),
   ]);
 
   const sum = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((s, x) => s + f(x), 0);
@@ -97,6 +106,8 @@ export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Pro
     cards,
     debts,
     beni,
+    moves,
+    budget,
     history,
     failed,
     refreshing: banks.some((b) => b.refreshing),

@@ -18,6 +18,7 @@ const TABS = [
 ] as const;
 
 const MORE = [
+  { href: "/budget", label: "Budget e spese ricorrenti" },
   { href: "/buoni", label: "Buoni postali" },
   { href: "/carte", label: "Carte di credito" },
   { href: "/conti", label: "Conti manuali" },
