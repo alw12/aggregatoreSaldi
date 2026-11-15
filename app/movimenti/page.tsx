@@ -9,6 +9,8 @@ import { averageMonth, monthlyFlows, topSpending, type Kind } from "@/lib/flows"
 import { todayRome } from "@/lib/history";
 import { listDebts } from "@/lib/debts";
 import { loadCatOpts } from "@/lib/cat-store";
+import { biggestChanges, compareCategories, previousPeriod } from "@/lib/compare";
+import { Delta } from "@/app/delta";
 import { CATEGORIES, categorize, spendingByCategory, type CatOpts } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +55,12 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
   const [catFrom, catTo] = period === "30" ? [since, today] : [`${period}-01`, `${period}-31`];
   const categories = data ? spendingByCategory(data.moves, catFrom, catTo, cat) : [];
   const catTotal = categories.reduce((t, c) => t + c.total, 0);
+  // Confronto con il periodo prima: per il mese in corso lo stesso tratto del mese prima
+  const prev = data ? previousPeriod(period, today, data.moves) : null;
+  const changes = data && prev ? compareCategories(data.moves, catFrom, period === "30" ? today : catTo, prev, cat) : [];
+  const beforeOf = new Map(changes.map((c) => [c.key, c.before]));
+  const big = biggestChanges(changes);
+  const totalBefore = changes.reduce((t, c) => t + c.before, 0);
 
   return (
     <main className="container">
@@ -127,6 +135,32 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
                   Tocca una categoria per vedere le spese che contiene, e una spesa per spostarla in un’altra categoria. Quello che non riconosco finisce in Altro.{" "}
                   <Link href="/categorie">Le tue correzioni</Link>
                 </p>
+                {prev && (
+                  <div className="compare-box">
+                    <div>
+                      In tutto <strong>{eur0(catTotal)}</strong> <Delta now={catTotal} before={totalBefore} good="down" suffix={prev.label} />
+                    </div>
+                    {(big.up.length > 0 || big.down.length > 0) && (
+                      <div className="compare-lines">
+                        {big.up.length > 0 && (
+                          <span>
+                            Di più: {big.up.map((c, i) => (
+                              <span key={c.key}>
+                                {i > 0 && ", "}
+                                {c.label} <strong>+{eur0(c.delta)}</strong>
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                        {big.down.length > 0 && (
+                          <span>
+                            Di meno: {big.down[0].label} <strong>−{eur0(-big.down[0].delta)}</strong>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <PieChart
                   center={eur0(catTotal)}
                   parts={categories.map((c) => ({
@@ -134,6 +168,7 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
                     label: `${c.label} (${c.moves.length})`,
                     value: c.total,
                     color: c.color,
+                    sub: prev ? <Delta now={c.total} before={beforeOf.get(c.key) ?? 0} good="down" /> : undefined,
                     detail: (
                       <div className="tx-list">
                         {c.moves.slice(0, 30).map((m) => (

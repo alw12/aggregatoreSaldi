@@ -176,7 +176,7 @@ export function FlowChart({ rows }: { rows: FlowRow[] }) {
   );
 }
 
-export type PiePart = { key: string; label: string; value: number; color: number; detail?: ReactNode };
+export type PiePart = { key: string; label: string; value: number; color: number; detail?: ReactNode; sub?: ReactNode };
 
 /**
  * Torta (ad anello) con il totale al centro e accanto la legenda con importo e percentuale di ogni
@@ -224,7 +224,10 @@ export function PieChart({ parts, caption, center }: { parts: PiePart[]; caption
             const row = (
               <>
                 <span className={`swatch c${a.color}`} aria-hidden />
-                <span className="alloc-label">{a.label}</span>
+                <span className="alloc-label">
+                  {a.label}
+                  {a.sub && <span className="pie-sub-line">{a.sub}</span>}
+                </span>
                 <span className="alloc-pct">{pct(a.value / sum)}</span>
                 <span className="alloc-value">{eur(a.value)}</span>
               </>

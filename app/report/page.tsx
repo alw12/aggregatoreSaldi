@@ -11,6 +11,7 @@ import { todayRome } from "@/lib/history";
 import { CATEGORIES, type CatOpts } from "@/lib/categories";
 import { monthReport, reportMonths, type MonthTotals } from "@/lib/report";
 import { addMonths } from "@/lib/budget";
+import { Delta } from "@/app/delta";
 import type { Movement } from "@/lib/flows";
 
 export const dynamic = "force-dynamic";
@@ -20,21 +21,6 @@ const pct = (n: number) => new Intl.NumberFormat("it-IT", { style: "percent", ma
 const monthName = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString("it-IT", { month: "long", year: "numeric", timeZone: "UTC" });
 const monthShort = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString("it-IT", { month: "long", timeZone: "UTC" });
 const shortDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("it-IT", { day: "numeric", month: "short", timeZone: "UTC" });
-
-/** Variazione rispetto al mese prima: freccia, importo e percentuale; `good` dice se salire è un bene. */
-function Delta({ now, before, good }: { now: number; before: number | null; good: "up" | "down" }) {
-  if (before === null) return null;
-  const d = now - before;
-  if (Math.abs(d) < 0.5) return <span className="delta same">= come il mese prima</span>;
-  const better = good === "up" ? d > 0 : d < 0;
-  const rel = before > 0 ? ` (${d > 0 ? "+" : "−"}${pct(Math.abs(d) / before)})` : "";
-  return (
-    <span className={`delta ${better ? "better" : "worse"}`}>
-      {d > 0 ? "▲" : "▼"} {eur0(Math.abs(d))}
-      {rel}
-    </span>
-  );
-}
 
 function Tile({ label, k, t, prev, good }: { label: string; k: keyof MonthTotals; t: MonthTotals; prev: MonthTotals | null; good: "up" | "down" }) {
   const v = t[k] ?? 0;

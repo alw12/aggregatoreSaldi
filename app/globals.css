@@ -687,3 +687,12 @@ div.pie-item { padding: 6px 4px; }
   border-radius: var(--radius); background: var(--accent-soft); color: var(--accent); font-size: 14px;
 }
 .report-ready:hover { text-decoration: none; filter: brightness(1.03); }
+
+/* ── Confronto con il periodo prima ──────────────────── */
+
+.pie-sub-line { display: block; margin-top: 1px; }
+.pie-sub-line .delta { font-size: 11px; }
+.compare-box { display: grid; gap: 4px; padding: 10px 14px; margin: 0 0 14px; border-radius: var(--radius); background: var(--sunken); font-size: 14px; }
+.compare-lines { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13px; }
+.compare-lines strong { color: var(--text); font-weight: 600; }
+[data-private] :is(.delta, .compare-box strong) { filter: blur(7px); user-select: none; }
