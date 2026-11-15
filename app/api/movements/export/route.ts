@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { psuHeadersFrom } from "@/lib/data";
 import { loadMovements } from "@/lib/transactions";
 import { listDebts } from "@/lib/debts";
+import { loadCatOpts } from "@/lib/cat-store";
 import { CATEGORIES, categorize } from "@/lib/categories";
 import { todayRome } from "@/lib/history";
 
@@ -13,7 +14,7 @@ const cell = (v: string) => (/[;"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` :
 /** Tutti i movimenti letti (ultimi ~4 mesi) in CSV con `;`, come lo apre Excel in italiano. Protetto dal login (proxy.ts). */
 export async function GET(request: NextRequest) {
   const [{ moves }, debts] = await Promise.all([loadMovements(psuHeadersFrom(request.headers)), listDebts().catch(() => [])]);
-  const installments = debts.flatMap((d) => (d.installment ? [d.installment] : []));
+  const cat = await loadCatOpts(debts);
   const rows = [
     ["data", "importo", "valuta", "controparte", "conto", "tipo", "categoria"],
     ...moves.map((m) => [
@@ -23,7 +24,7 @@ export async function GET(request: NextRequest) {
       m.party,
       m.account,
       KIND[m.kind],
-      m.kind === "out" ? CATEGORIES[categorize(m, installments)].label : "",
+      m.kind === "out" ? CATEGORIES[categorize(m, cat)].label : "",
     ]),
   ];
   // BOM: Excel riconosce l'UTF-8 (accenti) solo con il BOM

@@ -7,8 +7,9 @@ import { hasStore, listSessions } from "@/lib/store";
 import { loadMovements, type MovementsResult } from "@/lib/transactions";
 import { averageMonth, monthlyFlows, topSpending, type Kind } from "@/lib/flows";
 import { todayRome } from "@/lib/history";
-import { spendingByCategory } from "@/lib/categories";
 import { listDebts } from "@/lib/debts";
+import { loadCatOpts } from "@/lib/cat-store";
+import { CATEGORIES, categorize, spendingByCategory, type CatOpts } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
   const sp = await searchParams;
   const period = typeof sp.periodo === "string" && /^\d{4}-\d{2}$/.test(sp.periodo) ? sp.periodo : "30";
   let data: MovementsResult | null = null;
-  let installments: number[] = [];
+  let cat: CatOpts = {};
   let hasBanks = false;
   let error: string | null = null;
   if (hasStore()) {
@@ -37,7 +38,7 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
       hasBanks = (await listSessions()).length > 0;
       if (hasBanks) data = await loadMovements(psuHeadersFrom(await headers()));
       // Le rate dei prestiti si riconoscono dall'importo, qualunque sia la controparte
-      installments = (await listDebts().catch(() => [])).flatMap((d) => (d.installment ? [d.installment] : []));
+      cat = await loadCatOpts(await listDebts().catch(() => []));
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -50,7 +51,7 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
   const top = data ? topSpending(data.moves, since) : [];
   const months = flows.map((f) => f.month).reverse().slice(0, 4);
   const [catFrom, catTo] = period === "30" ? [since, today] : [`${period}-01`, `${period}-31`];
-  const categories = data ? spendingByCategory(data.moves, catFrom, catTo, installments) : [];
+  const categories = data ? spendingByCategory(data.moves, catFrom, catTo, cat) : [];
   const catTotal = categories.reduce((t, c) => t + c.total, 0);
 
   return (
@@ -122,7 +123,10 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
             </nav>
             {catTotal > 0 ? (
               <>
-                <p className="chart-note">Tocca una categoria per vedere le spese che contiene. Le categorie si riconoscono dal nome di chi incassa; quello che non riconosco finisce in Altro.</p>
+                <p className="chart-note">
+                  Tocca una categoria per vedere le spese che contiene, e una spesa per spostarla in un’altra categoria. Quello che non riconosco finisce in Altro.{" "}
+                  <Link href="/categorie">Le tue correzioni</Link>
+                </p>
                 <PieChart
                   center={eur0(catTotal)}
                   parts={categories.map((c) => ({
@@ -133,11 +137,11 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
                     detail: (
                       <div className="tx-list">
                         {c.moves.slice(0, 30).map((m) => (
-                          <div key={m.id} className="tx">
+                          <Link key={m.id} className="tx tx-link" href={`/categorie?p=${encodeURIComponent(m.party)}`} title="Cambia categoria">
                             <span className="tx-party">{m.party}</span>
-                            <span className="tx-meta">{shortDate(m.date)}, {m.account}</span>
+                            <span className="tx-meta">{shortDate(m.date)}, {m.account} · cambia categoria</span>
                             <span className="tx-amount">{eur(m.amount)}</span>
-                          </div>
+                          </Link>
                         ))}
                       </div>
                     ),
@@ -167,7 +171,17 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
                     {m.party}
                     {TAG[m.kind] && <span className="tx-tag">{TAG[m.kind]}</span>}
                   </span>
-                  <span className="tx-meta">{shortDate(m.date)}, {m.account}</span>
+                  <span className="tx-meta">
+                    {shortDate(m.date)}, {m.account}
+                    {m.kind === "out" && m.currency === "EUR" && (
+                      <>
+                        {" · "}
+                        <Link className="tx-cat" href={`/categorie?p=${encodeURIComponent(m.party)}`} title="Cambia categoria">
+                          {CATEGORIES[categorize(m, cat)].label}
+                        </Link>
+                      </>
+                    )}
+                  </span>
                   <span className={`tx-amount${m.amount > 0 ? " in" : ""}`}>{m.amount > 0 ? "+" : ""}{eur(m.amount)}</span>
                 </div>
               ))}

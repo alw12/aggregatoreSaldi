@@ -11,6 +11,8 @@ import { loadHistory, todayRome, type Snapshot } from "./history";
 import { loadMovements } from "./transactions";
 import type { Movement } from "./flows";
 import { getBudget } from "./budget-store";
+import { listCatRules } from "./cat-store";
+import type { CatRules } from "./categories";
 import { EMPTY_BUDGET, type BudgetSettings } from "./budget";
 
 /** Tutti i dati dell'app in una volta, con gli stessi totali della Panoramica. */
@@ -26,6 +28,7 @@ export type Overview = {
   /** Movimenti dalla cache (vuoto se scaduta) e impostazioni del budget, per gli avvisi sul budget. */
   moves: Movement[];
   budget: BudgetSettings;
+  catRules: CatRules;
   history: Snapshot[];
   failed: number; // conti non letti, esclusi dai totali
   refreshing: boolean; // qualche banca è in rilettura in background
@@ -53,7 +56,7 @@ export type Overview = {
 };
 
 export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Promise<Overview> {
-  const [banks, portfolio, bonds, cards, manual, history, { moves, debts }, beni, budget] = await Promise.all([
+  const [banks, portfolio, bonds, cards, manual, history, { moves, debts }, beni, budget, catRules] = await Promise.all([
     loadDashboard(psu, opts),
     loadPortfolio().then(
       (holdings) => ({ holdings, error: null }),
@@ -69,6 +72,7 @@ export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Pro
       .then(async (mv) => ({ moves: mv?.moves ?? [], debts: await listDebts() })),
     listPossessions(),
     getBudget().catch(() => EMPTY_BUDGET),
+    listCatRules().catch(() => ({}) as CatRules),
   ]);
 
   const sum = <T,>(xs: T[], f: (x: T) => number) => xs.reduce((s, x) => s + f(x), 0);
@@ -108,6 +112,7 @@ export async function loadOverview(psu: PsuHeaders, opts: LoadOptions = {}): Pro
     beni,
     moves,
     budget,
+    catRules,
     history,
     failed,
     refreshing: banks.some((b) => b.refreshing),

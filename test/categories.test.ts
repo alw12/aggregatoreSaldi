@@ -40,7 +40,7 @@ describe("categorie di spesa", () => {
     expect(c("Bonifico a Mario Rossi")).toBe("altro");
   });
   it("la rata di un prestito si riconosce dall'importo", () => {
-    expect(categorize({ party: "SDD CORE 8812", amount: -281.82, currency: "EUR" }, [281.82])).toBe("rate");
+    expect(categorize({ party: "SDD CORE 8812", amount: -281.82, currency: "EUR" }, { installments: [281.82] })).toBe("rate");
   });
   it("somma per categoria nel periodo, senza entrate, giroconti e soldi messi da parte; Altro in fondo", () => {
     const rows = spendingByCategory(
@@ -56,8 +56,15 @@ describe("categorie di spesa", () => {
       ],
       "2026-11-01",
       "2026-11-31",
-      [281.82],
+      { installments: [281.82] },
     );
     expect(rows.map((r) => [r.key, r.total])).toEqual([["rate", 281.82], ["spesa", 80], ["altro", 500]]);
+  });
+  it("le correzioni a mano vincono su regole e rate, per tutta la controparte", () => {
+    const rules = { "mc donald": "spesa" as const, core: "casa" as const };
+    expect(categorize({ party: "Mc Donald S 14", amount: -8, currency: "EUR" }, { rules })).toBe("spesa");
+    expect(categorize({ party: "Mc Donald S 2", amount: -8, currency: "EUR" }, { rules })).toBe("spesa");
+    expect(categorize({ party: "SDD CORE 8812", amount: -281.82, currency: "EUR" }, { installments: [281.82], rules })).toBe("casa");
+    expect(categorize({ party: "Mc Donald S 14", amount: -8, currency: "EUR" })).toBe("ristoranti");
   });
 });

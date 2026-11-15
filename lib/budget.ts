@@ -1,7 +1,8 @@
 /** Budget, obiettivo di risparmio, previsione del mese e spese ricorrenti: logica pura (testata in budget.test.ts). */
 
 import type { Movement } from "./flows";
-import { CATEGORIES, categorize, type CategoryKey } from "./categories";
+import { CATEGORIES, categorize, type CategoryKey, type CatOpts } from "./categories";
+import { partyKey } from "./party";
 
 export type BudgetSettings = {
   goal: number | null; // € da mettere da parte ogni mese
@@ -98,27 +99,16 @@ export type Recurring = {
   next: string; // prossimo addebito previsto
 };
 
-// Parole di servizio delle banche davanti al nome di chi incassa
-const NOISE = /\b(pagamento|pag|pos|addebito|addebiti|diretto|sdd|sepa|carta|bonifico|a favore di|disposizione|vs|presso|ricorrente|del|di)\b/g;
-const normalize = (party: string) =>
-  party
-    .toLowerCase()
-    .replace(/[^\p{L}& ]+/gu, " ")
-    .replace(NOISE, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 32);
-
 /**
  * Spese che tornano ogni mese: stessa controparte, importo simile (±10%, almeno 1 €), una volta al
  * mese a 20-40 giorni di distanza, almeno due mesi. Lo stesso addebito visto prima "in attesa" e poi
  * contabilizzato conta una volta; quelle ferme da più di 40 giorni non ci sono più.
  */
-export function recurringSpending(moves: Movement[], today: string, installments: number[] = []): Recurring[] {
+export function recurringSpending(moves: Movement[], today: string, cat: CatOpts = {}): Recurring[] {
   const groups = new Map<string, Movement[]>();
   for (const m of moves) {
     if (m.kind !== "out" || m.currency !== "EUR" || m.amount >= 0 || m.date > today) continue;
-    const key = normalize(m.party);
+    const key = partyKey(m.party);
     if (!key) continue;
     groups.set(key, [...(groups.get(key) ?? []), m]);
   }
@@ -152,7 +142,7 @@ export function recurringSpending(moves: Movement[], today: string, installments
         key: `${key}:${Math.round(-last.amount)}`,
         party: last.party,
         amount: -last.amount,
-        category: categorize(last, installments),
+        category: categorize(last, cat),
         months: seen.length,
         last: last.date,
         next: nextMonthSameDay(last.date),
@@ -178,34 +168,34 @@ export type BudgetLine = {
 };
 
 /** Spesa per categoria del mese in corso fino a oggi. */
-export function spentThisMonth(moves: Movement[], today: string, installments: number[] = []): Map<CategoryKey, number> {
+export function spentThisMonth(moves: Movement[], today: string, cat: CatOpts = {}): Map<CategoryKey, number> {
   const month = today.slice(0, 7);
   const map = new Map<CategoryKey, number>();
   for (const m of moves) {
     if (m.kind !== "out" || m.currency !== "EUR" || m.date.slice(0, 7) !== month || m.date > today) continue;
-    const k = categorize(m, installments);
+    const k = categorize(m, cat);
     map.set(k, (map.get(k) ?? 0) - m.amount);
   }
   return map;
 }
 
 /** Spesa media al mese per categoria, sugli ultimi tre mesi interi. */
-export function usualByCategory(moves: Movement[], today: string, installments: number[] = []): Map<CategoryKey, number> {
+export function usualByCategory(moves: Movement[], today: string, cat: CatOpts = {}): Map<CategoryKey, number> {
   const full = new Set(completeMonths(moves, today.slice(0, 7)).slice(-3));
   const map = new Map<CategoryKey, number>();
   if (!full.size) return map;
   for (const m of moves) {
     if (m.kind !== "out" || m.currency !== "EUR" || !full.has(m.date.slice(0, 7))) continue;
-    const k = categorize(m, installments);
+    const k = categorize(m, cat);
     map.set(k, (map.get(k) ?? 0) - m.amount / full.size);
   }
   return map;
 }
 
 /** Categorie con un tetto: speso finora, tetto e spesa abituale. Dalla più vicina al limite. */
-export function budgetLines(moves: Movement[], limits: BudgetSettings["limits"], today: string, installments: number[] = []): BudgetLine[] {
-  const spent = spentThisMonth(moves, today, installments);
-  const usual = usualByCategory(moves, today, installments);
+export function budgetLines(moves: Movement[], limits: BudgetSettings["limits"], today: string, cat: CatOpts = {}): BudgetLine[] {
+  const spent = spentThisMonth(moves, today, cat);
+  const usual = usualByCategory(moves, today, cat);
   return (Object.entries(limits) as [CategoryKey, number][])
     .filter(([, limit]) => limit > 0)
     .map(([key, limit]) => ({ key, ...CATEGORIES[key], limit, spent: spent.get(key) ?? 0, usual: usual.has(key) ? usual.get(key)! : null }))
@@ -227,16 +217,21 @@ export function goalHistory(moves: Movement[], goal: number, today: string): Goa
     });
 }
 
+export type Runway = { months: number; monthly: number; available: number; basis: number };
+
 /**
- * Nome leggibile dalla descrizione della banca: via "PAGAMENTO POS", data e ora, numero di operazione,
- * carta, codici del mandato SEPA. Le descrizioni tutte maiuscole diventano Maiuscole Iniziali.
+ * Mesi di autonomia: per quanti mesi la liquidità (tolto quello che le carte addebiteranno) copre le
+ * spese medie degli ultimi mesi interi, senza nessuna entrata. Contano tutte le uscite, rate comprese.
  */
-export function displayParty(party: string): string {
-  let s = party
-    .replace(/^(pagamento pos|domiciliazione \(addebito diretto sepa\)|addebito diretto sepa|postagiro a|bonifico a favore di|bonifico a)\s+/i, "")
-    .replace(/\s+(\d{2}\/\d{2}\/\d{2,4}|cid\.|op\.|carta\b|man\.|trn\b|mndt).*$/i, "")
-    .replace(/^www\./i, "")
-    .trim();
-  if (s && s === s.toUpperCase()) s = s.toLowerCase().replace(/(^|[\s(])(\p{L})/gu, (_, a: string, b: string) => a + b.toUpperCase());
-  return s || party;
+export function runway(cash: number, owedSoon: number, moves: Movement[], today: string): Runway | null {
+  const full = new Set(completeMonths(moves, today.slice(0, 7)).slice(-3));
+  if (!full.size) return null;
+  let spent = 0;
+  for (const m of moves) if (m.kind === "out" && m.currency === "EUR" && full.has(m.date.slice(0, 7))) spent -= m.amount;
+  const monthly = spent / full.size;
+  if (monthly <= 0) return null;
+  const available = cash - owedSoon;
+  return { months: Math.max(0, available) / monthly, monthly, available, basis: full.size };
 }
+
+export { displayParty } from "./party";

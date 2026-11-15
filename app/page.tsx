@@ -7,6 +7,9 @@ import { byAssetClass } from "@/lib/portfolio";
 import { recordSnapshot, todayRome } from "@/lib/history";
 import { changeSince, loadOverview, type Overview } from "@/lib/overview";
 import { computeAlerts } from "@/lib/alerts";
+import { runway } from "@/lib/budget";
+import { loadMovements } from "@/lib/transactions";
+import { RunwayCard } from "./runway";
 import { QuickEdit } from "./quick-edit";
 import { Nav } from "./nav";
 import { AutoRefresh } from "./auto-refresh";
@@ -124,6 +127,13 @@ export default async function Home({ searchParams }: PageProps<"/">) {
   const multiBroker = new Set(holdings.map((h) => h.broker)).size > 1;
   const today = todayRome();
   const alerts = computeAlerts(o, today);
+  const autonomy = runway(t.cash, t.cards, o.moves, today);
+  // La Panoramica legge i movimenti solo dalla cache (6 ore): se è scaduta la riempie dopo la risposta,
+  // così alla prossima apertura ci sono i mesi di autonomia senza rallentare questa
+  if (!o.moves.length && banks.length) {
+    const psu = psuHeadersFrom(await headers());
+    after(() => loadMovements(psu).then(() => undefined, () => undefined));
+  }
 
   // Una fotografia al giorno per il grafico; solo se tutto è stato letto, per non registrare buchi.
   const snap = o.today;
@@ -196,6 +206,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
               ))}
             </ul>
           )}
+
+          {autonomy && <RunwayCard r={autonomy} link={<> Dettagli in <Link href="/budget">Budget</Link>.</>} />}
 
           <section className="card chart-card">
             <div className="chart-title">Andamento</div>

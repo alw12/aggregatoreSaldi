@@ -3,6 +3,7 @@ import { EbError, getTransactions, type PsuHeaders, type Transaction } from "./e
 import { listSessions, redis } from "./store";
 import { classify, ownPattern, type Movement } from "./flows";
 import { applyLoanPayments } from "./debts";
+import { recordDeductions } from "./deductions-store";
 
 /** Movimenti di tutti i conti collegati, ultimi ~4 mesi, con cache di 6 ore (le banche limitano le letture). */
 
@@ -103,6 +104,8 @@ export async function loadMovements(psu: PsuHeaders | null): Promise<MovementsRe
   const moves = lists.flat().sort((a, b) => b.date.localeCompare(a.date));
   // Le rate dei prestiti con "scala in automatico" vengono tolte dal debito appena compaiono
   await applyLoanPayments(moves).catch(() => 0);
+  // Le spese detraibili si salvano per anno: la banca dà solo gli ultimi mesi, il 730 vuole l'anno intero
+  await recordDeductions(moves).catch(() => 0);
   return { moves, errors, fetchedAt: stamps.sort()[0] ?? null };
 }
 

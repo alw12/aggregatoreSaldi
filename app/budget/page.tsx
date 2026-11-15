@@ -1,11 +1,17 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { Nav } from "@/app/nav";
+import { RunwayCard } from "@/app/runway";
+import { loadCards } from "@/lib/cards";
+import { listManualAccounts } from "@/lib/manual";
+import { loadDashboard } from "@/lib/data";
 import { psuHeadersFrom } from "@/lib/data";
 import { hasStore, listSessions } from "@/lib/store";
 import { loadMovements } from "@/lib/transactions";
 import { listDebts, type Debt } from "@/lib/debts";
 import { getBudget } from "@/lib/budget-store";
+import { loadCatOpts } from "@/lib/cat-store";
+import type { CatOpts } from "@/lib/categories";
 import { todayRome } from "@/lib/history";
 import { CATEGORIES, type CategoryKey } from "@/lib/categories";
 import { payoff } from "@/lib/finance";
@@ -21,6 +27,7 @@ import {
   recurringSpending,
   usualByCategory,
   BUDGET_WARN,
+  runway,
   displayParty,
   type BudgetSettings,
 } from "@/lib/budget";
@@ -46,6 +53,9 @@ export default async function BudgetPage({ searchParams }: PageProps<"/budget">)
   let moves: Movement[] = [];
   let debts: Debt[] = [];
   let budget: BudgetSettings = EMPTY_BUDGET;
+  let cat: CatOpts = {};
+  let cash: number | null = null;
+  let owed = 0;
   let hasBanks = false;
   let error: string | null = null;
   if (hasStore()) {
@@ -54,6 +64,13 @@ export default async function BudgetPage({ searchParams }: PageProps<"/budget">)
       // Prima i movimenti: scalano le rate passate, poi i debiti sono aggiornati
       if (hasBanks) moves = (await loadMovements(psuHeadersFrom(await headers()))).moves;
       [debts, budget] = await Promise.all([listDebts(), getBudget()]);
+      cat = await loadCatOpts(debts);
+      // Liquidità come in Panoramica (conti in EUR letti + conti manuali) e quanto addebiteranno le carte
+      const [banks, manual, cards] = await Promise.all([loadDashboard(psuHeadersFrom(await headers())), listManualAccounts(), loadCards()]);
+      cash =
+        banks.flatMap((b) => b.accounts).reduce((t, a) => t + (a.currency === "EUR" && a.amount !== null ? a.amount : 0), 0) +
+        manual.reduce((t, a) => t + (a.currency === "EUR" ? a.amount : 0), 0);
+      owed = cards.reduce((t, c) => t + c.balance, 0);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }
@@ -61,14 +78,13 @@ export default async function BudgetPage({ searchParams }: PageProps<"/budget">)
 
   const today = todayRome();
   const month = today.slice(0, 7);
-  const installments = debts.flatMap((d) => (d.installment ? [d.installment] : []));
   const f = forecastMonth(moves, today);
-  const rec = recurringSpending(moves, today, installments);
+  const rec = recurringSpending(moves, today, cat);
   const due = recurringDue(rec, today);
   const dueTotal = due.reduce((s, r) => s + r.amount, 0);
   const recTotal = rec.reduce((s, r) => s + r.amount, 0);
-  const lines = budgetLines(moves, budget.limits, today, installments);
-  const usual = usualByCategory(moves, today, installments);
+  const lines = budgetLines(moves, budget.limits, today, cat);
+  const usual = usualByCategory(moves, today, cat);
   const goal = budget.goal;
   const history = goal ? goalHistory(moves, goal, today) : [];
   const pace = (Number(today.slice(8, 10)) / daysInMonth(month)) * 100;
@@ -77,6 +93,7 @@ export default async function BudgetPage({ searchParams }: PageProps<"/budget">)
     .filter((d) => d.installment && d.amount > 0)
     .map((d) => ({ d, plan: payoff(d.amount, d.installment!, d.rate ?? 0) }));
   const hasMoves = moves.length > 0;
+  const autonomy = cash !== null ? runway(cash, owed, moves, today) : null;
 
   return (
     <main className="container">
@@ -154,6 +171,8 @@ export default async function BudgetPage({ searchParams }: PageProps<"/budget">)
           )}
         </section>
       )}
+
+      {autonomy && <RunwayCard r={autonomy} />}
 
       {hasMoves && (
         <section className="card chart-card" id="categorie">

@@ -63,7 +63,7 @@ export function computeAlerts(o: Overview, today: string): Alert[] {
   // Budget per categoria: un avviso all'80% e uno quando si supera, una volta al mese ciascuno
   const monthName = new Date(`${today.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString("it-IT", { month: "long", timeZone: "UTC" });
   const installments = o.debts.flatMap((d) => (d.installment ? [d.installment] : []));
-  for (const b of budgetLines(o.moves ?? [], o.budget?.limits ?? {}, today, installments)) {
+  for (const b of budgetLines(o.moves ?? [], o.budget?.limits ?? {}, today, { installments, rules: o.catRules })) {
     const ratio = b.spent / b.limit;
     if (ratio < BUDGET_WARN) continue;
     const over = ratio >= 1;

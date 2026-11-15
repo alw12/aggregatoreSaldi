@@ -2,6 +2,7 @@
 
 import type { Movement } from "./flows";
 import { isInstallment } from "./loan-payments";
+import { partyKey } from "./party";
 
 export type CategoryKey = "rate" | "casa" | "abbonamenti" | "spesa" | "ristoranti" | "trasporti" | "salute" | "shopping" | "altro";
 
@@ -30,21 +31,33 @@ const RULES: [CategoryKey, RegExp][] = [
   ["shopping", /lefties|kasanova|amazon|amzn|zalando|shein|\btemu\b|aliexpress|\bebay\b|\bikea\b|decathlon|mediaworld|unieuro|euronics|\bzara\b|h ?& ?m\b|primark|\bovs\b|uniqlo|\bnike\b|adidas|foot ?locker|sephora|douglas|mondadori|feltrinelli|apple store|leroy merlin|brico|vinted|paypal/i],
 ];
 
-/** Categoria di un'uscita; `installments` sono le rate dei debiti, riconosciute dall'importo. */
-export function categorize(m: Pick<Movement, "party" | "amount" | "currency">, installments: number[] = []): CategoryKey {
-  if (installments.some((i) => isInstallment(m as Movement, i))) return "rate";
+/** Correzioni fatte a mano: chiave della controparte (partyKey) → categoria. */
+export type CatRules = Record<string, CategoryKey>;
+/** `installments`: rate dei debiti, riconosciute dall'importo; `rules`: correzioni a mano, che vincono su tutto. */
+export type CatOpts = { installments?: number[]; rules?: CatRules };
+
+export const isCategory = (v: unknown): v is CategoryKey => typeof v === "string" && v in CATEGORIES;
+
+/** Categoria di un'uscita. */
+export function categorize(m: Pick<Movement, "party" | "amount" | "currency">, opts: CatOpts = {}): CategoryKey {
+  const rule = opts.rules?.[partyKey(m.party)];
+  if (rule) return rule;
+  if (opts.installments?.some((i) => isInstallment(m as Movement, i))) return "rate";
   for (const [key, re] of RULES) if (re.test(m.party)) return key;
   return "altro";
 }
 
+/** Categoria che darebbero le sole regole automatiche, per mostrare cosa cambia una correzione. */
+export const autoCategory = (m: Pick<Movement, "party" | "amount" | "currency">, opts: CatOpts = {}) => categorize(m, { ...opts, rules: undefined });
+
 export type CategoryTotal = { key: CategoryKey; label: string; color: number; total: number; moves: Movement[] };
 
 /** Uscite (solo EUR, senza giroconti né soldi messi da parte) per categoria tra `since` e `until` inclusi, dalla più grande. */
-export function spendingByCategory(moves: Movement[], since: string, until: string, installments: number[] = []): CategoryTotal[] {
+export function spendingByCategory(moves: Movement[], since: string, until: string, cat: CatOpts = {}): CategoryTotal[] {
   const map = new Map<CategoryKey, CategoryTotal>();
   for (const m of moves) {
     if (m.kind !== "out" || m.currency !== "EUR" || m.date < since || m.date > until) continue;
-    const key = categorize(m, installments);
+    const key = categorize(m, cat);
     const cur = map.get(key) ?? { key, ...CATEGORIES[key], total: 0, moves: [] };
     cur.total -= m.amount;
     cur.moves.push(m);
