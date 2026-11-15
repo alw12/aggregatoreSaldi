@@ -15,7 +15,7 @@ export type Movement = {
 
 // Soldi spostati verso broker, salvadanai e risparmio: non sono spese, sono messi da parte
 const INVEST =
-  /scalable|trade ?republic|directa|degiro|fineco.*titoli|moneyfarm|revolut.*(invest|stock)|buon[oi] frutt|\bbfp\b|fondo pensione|cometa|fonte\b|investiment|risparmio|salvadanaio|\bvault\b|\bpocket\b|round.?up/i;
+  /scalable|trade ?republic|directa|degiro|fineco.*titoli|moneyfarm|revolut.*(invest|stock)|buon[oi] frutt|\bbfp\b|fondo pensione|cometa|fonte\b|investiment|risparmio|salvadanaio|conto deposito|\bvault\b|\bpocket\b|round.?up/i;
 
 const TRANSFER = /giroconto|ricarica|top.?up|trasferimento tra/i;
 
