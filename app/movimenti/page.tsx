@@ -156,7 +156,10 @@ export default async function MovementsPage({ searchParams }: PageProps<"/movime
           )}
 
           <section className="card chart-card">
-            <div className="chart-title">Ultimi movimenti</div>
+            <div className="bank-head">
+              <div className="chart-title">Ultimi movimenti</div>
+              <a className="btn btn-ghost" href="/api/movements/export" download>Scarica CSV</a>
+            </div>
             <div className="tx-list">
               {data.moves.slice(0, 40).map((m) => (
                 <div key={m.id} className="tx">

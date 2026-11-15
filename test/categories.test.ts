@@ -14,6 +14,8 @@ describe("categorie di spesa", () => {
     expect(c("Deliveroo Italy")).toBe("ristoranti");
     expect(c("BAR CENTRALE")).toBe("ristoranti");
     expect(c("ENI STATION 123")).toBe("trasporti");
+    expect(c("New Gas Network Di Mando")).toBe("trasporti");
+    expect(c("Unicoop Firenze Empoli")).toBe("spesa");
     expect(c("Eni Plenitude SDD")).toBe("casa");
     expect(c("ILIAD ITALIA")).toBe("casa");
     expect(c("AMAZON PRIME")).toBe("abbonamenti");
