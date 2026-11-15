@@ -16,6 +16,17 @@ describe("movimenti", () => {
     expect(classify(-5.98, "Risparmio Casa", null, own)).toBe("invest");
     expect(classify(-1, "To Conto deposito senza vincoli", null, own)).toBe("invest");
   });
+  it("addebito diretto a tuo nome = broker che preleva; commissioni = spese; nome al contrario = tuo conto", () => {
+    const own = ownPattern("BancoPosta", ["BancoPosta", "Revolut", "BBVA"], ["Conto Corrente BancoPosta", "Alessandro Stapane"]);
+    const none = new Set<string>();
+    expect(classify(-50, "DOMICILIAZIONE (ADDEBITO DIRETTO SEPA) Alessandro Stapane CID.DE63MUC00001787612", null, none, own)).toBe("invest");
+    expect(classify(-0.4, "COMMISSIONI DOMICILIAZIONE (ADDEBITO DIRETTO SEPA) Alessandro Stapane CID.DE63MU", null, none, own)).toBe("out");
+    expect(classify(-1, "COMMISSIONI BONIFICO A Alessandro Stapane TRN EA26", null, none, own)).toBe("out");
+    expect(classify(-100, "BONIFICO SEPA A Alessandro Stapane TRN EA26 per accantonamento", null, none, own)).toBe("internal");
+    expect(classify(-9.95, "DOMICILIAZIONE (ADDEBITO DIRETTO SEPA) FASTWEB SpA CID.IT83", null, none, own)).toBe("out");
+    const bbva = ownPattern("BBVA", ["BancoPosta", "Revolut", "BBVA"], ["CONTO BBVA", "Alessandro Stapane"]);
+    expect(classify(100, "STAPANE ALESSANDRO", null, none, bbva)).toBe("internal");
+  });
   it("somma per mese, esclude giroconti, calcola il tasso di risparmio", () => {
     const flows = monthlyFlows([
       mv("2026-08-27", 1500, "Stipendio"),

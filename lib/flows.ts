@@ -18,6 +18,10 @@ const INVEST =
   /scalable|trade ?republic|directa|degiro|fineco.*titoli|moneyfarm|revolut.*(invest|stock)|buon[oi] frutt|\bbfp\b|fondo pensione|cometa|fonte\b|investiment|risparmio|salvadanaio|conto deposito|\bvault\b|\bpocket\b|round.?up/i;
 
 const TRANSFER = /giroconto|ricarica|top.?up|trasferimento tra/i;
+// Addebito diretto SEPA: se il creditore porta il tuo nome è un broker che preleva (piano di accumulo)
+const DIRECT_DEBIT = /domiciliazione|addebito diretto|\bsdd\b|direct debit|lastschrift/i;
+// Costi della banca su bonifici e addebiti: sono spese anche quando la descrizione contiene il tuo nome
+const FEE = /^\s*(commissioni|commissione|spese)\b/i;
 
 /**
  * `own` riconosce i propri conti dal testo: nomi delle altre banche collegate (la ricarica Revolut da
@@ -25,6 +29,8 @@ const TRANSFER = /giroconto|ricarica|top.?up|trasferimento tra/i;
  */
 export function classify(amount: number, party: string, counterIban: string | null, ownIbans: Set<string>, own?: RegExp | null): Kind {
   if (counterIban && ownIbans.has(counterIban.replace(/\s/g, "").toUpperCase())) return "internal";
+  if (amount < 0 && FEE.test(party)) return "out";
+  if (amount < 0 && DIRECT_DEBIT.test(party) && own?.test(party)) return "invest";
   if (TRANSFER.test(party) || own?.test(party)) return "internal";
   if (amount < 0 && INVEST.test(party)) return "invest";
   return amount >= 0 ? "in" : "out";
@@ -85,6 +91,11 @@ export function ownPattern(bank: string, banks: string[], labels: string[]): Reg
   // BancoPosta compare anche come "Poste"
   if (banks.some((b) => b !== bank && /bancoposta|poste/i.test(b))) others.push("Poste", "BancoPosta");
   const names = labels.filter((l) => /^\p{L}+(?: \p{L}+)+$/u.test(l.trim()) && !GENERIC.test(l)).map((l) => l.trim());
+  // Le banche scrivono il nome anche al contrario ("STAPANE ALESSANDRO" sul bonifico ricevuto da BBVA)
+  for (const n of [...names]) {
+    const words = n.split(" ");
+    if (words.length === 2) names.push(`${words[1]} ${words[0]}`);
+  }
   const terms = [...new Set([...others, ...names])].map(escape);
   return terms.length ? new RegExp(`\\b(?:${terms.join("|")})`, "i") : null;
 }
