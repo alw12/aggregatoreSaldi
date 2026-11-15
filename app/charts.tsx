@@ -88,9 +88,9 @@ export function Meter({ used, limit, label }: { used: number; limit: number; lab
 }
 
 /**
- * Liquido contro investito. L'investito resta diviso nei suoi due colori
- * (ETF e crypto, buoni) come nella composizione, con una graffa sotto che li
- * raggruppa: il colore segue sempre la stessa voce in tutta la pagina.
+ * Liquido contro investito: le due cifre grandi, la barra e sotto una legenda con ogni voce
+ * (importo e quota del totale). L'investito resta diviso nei suoi colori (ETF e crypto, buoni)
+ * come nella composizione: il colore segue sempre la stessa voce in tutta l'app.
  */
 export function SplitChart({ cash, etf, bonds }: { cash: number; etf: number; bonds: number }) {
   const c = Math.max(0, cash);
@@ -100,26 +100,20 @@ export function SplitChart({ cash, etf, bonds }: { cash: number; etf: number; bo
   const sum = c + invested;
   if (sum <= 0) return null;
   const segs = [
-    { key: "cash", value: c, slot: 1, label: "Liquidità" },
-    { key: "etf", value: e, slot: 2, label: "ETF e crypto" },
-    { key: "bfp", value: b, slot: 3, label: "Buoni postali" },
+    { key: "cash", value: c, slot: 1, label: "Liquidità", group: "Liquido" },
+    { key: "etf", value: e, slot: 2, label: "ETF e crypto", group: "Investito" },
+    { key: "bfp", value: b, slot: 3, label: "Buoni postali", group: "Investito" },
   ].filter((s) => s.value > 0);
   return (
     <figure className="alloc" aria-label={`Liquido ${pct(c / sum)}, investito ${pct(invested / sum)}`}>
       <div className="split-figures">
         <div className="split-fig">
-          <span className="split-name"><span className="swatch s1" aria-hidden />Liquido</span>
+          <span className="split-name">Liquido</span>
           <span className="split-pct">{pct(c / sum)}</span>
           <span className="split-amt">{eur(c)}</span>
         </div>
         <div className="split-fig right">
-          <span className="split-name">
-            Investito
-            <span aria-hidden style={{ display: "inline-flex", gap: 2 }}>
-              {e > 0 && <span className="swatch s2" />}
-              {b > 0 && <span className="swatch s3" />}
-            </span>
-          </span>
+          <span className="split-name">Investito</span>
           <span className="split-pct">{pct(invested / sum)}</span>
           <span className="split-amt">{eur(invested)}</span>
         </div>
@@ -129,14 +123,19 @@ export function SplitChart({ cash, etf, bonds }: { cash: number; etf: number; bo
           <span key={s.key} className={`s${s.slot}`} style={{ flexGrow: s.value / sum }} title={`${s.label}: ${eur(s.value)} (${pct(s.value / sum)})`} />
         ))}
       </div>
-      <div className="split-groups" aria-hidden>
-        {c > 0 && <span style={{ flexGrow: c / sum }}>Liquido</span>}
-        {invested > 0 && (
-          <span style={{ flexGrow: invested / sum }}>
-            {e > 0 && b > 0 ? `ETF e crypto ${pct(e / sum)}, buoni ${pct(b / sum)}` : e > 0 ? "ETF e crypto" : "Buoni postali"}
-          </span>
-        )}
-      </div>
+      <figcaption className="alloc-legend">
+        {segs.map((s) => (
+          <div key={s.key} className="alloc-item">
+            <span className={`swatch s${s.slot}`} aria-hidden />
+            <span className="alloc-label">
+              {s.label}
+              {s.group === "Investito" && <span className="split-tag">investito</span>}
+            </span>
+            <span className="alloc-pct">{pct(s.value / sum)}</span>
+            <span className="alloc-value">{eur(s.value)}</span>
+          </div>
+        ))}
+      </figcaption>
     </figure>
   );
 }

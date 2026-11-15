@@ -102,6 +102,11 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   overflow-x: auto; scrollbar-width: none;
 }
 .sections::-webkit-scrollbar { display: none; }
+/* Da tablet in su tutte le sezioni stanno a vista, su più righe: niente scorrimento nascosto */
+@media (min-width: 640px) {
+  .sections { flex-wrap: wrap; gap: 4px; margin: 14px 0 0; padding: 0; overflow: visible; }
+  .section-link { padding: 6px 12px; }
+}
 .section-link {
   flex: none; padding: 7px 13px; border-radius: 999px; font-size: 14px; font-weight: 500;
   color: var(--muted); border: 1px solid transparent;
@@ -360,9 +365,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .split-bar > span { min-width: 4px; }
 .split-bar > span:first-child { border-radius: 4px 0 0 4px; }
 .split-bar > span:last-child { border-radius: 0 4px 4px 0; }
-.split-groups { display: flex; gap: 2px; margin-top: 6px; font-size: 12px; color: var(--muted); }
-.split-groups > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-top: 1px solid var(--faint); padding-top: 3px; }
-.split-groups > span:last-child { text-align: right; }
+.split-bar > span:only-child { border-radius: 4px; }
+.split-tag { margin-left: 8px; font-size: 12px; color: var(--faint); }
 .split-sub { margin-top: 18px; }
 .account-iban.estimate { color: var(--warn-text); }
 
