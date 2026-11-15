@@ -29,6 +29,8 @@ describe("categorie di spesa", () => {
     expect(c("Buoni & Belli Srl")).toBe("salute");
     expect(c("Ne. Group Srl")).toBe("spesa");
     expect(c("Top Laundry S.r.l.")).toBe("casa");
+    expect(c("Crivide Di Lelli Cristin")).toBe("salute");
+    expect(c("TIGOTA' 123")).toBe("salute");
     expect(c("D303 Altopascio")).toBe("ristoranti");
     expect(c("Eni Plenitude SDD")).toBe("casa");
     expect(c("ILIAD ITALIA")).toBe("casa");
