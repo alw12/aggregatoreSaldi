@@ -58,7 +58,7 @@ export default async function AlertsPage() {
         <div className="chart-title">Notifiche su questo dispositivo</div>
         <p className="chart-note">
           Ti avviso quando un consenso bancario sta per scadere, una carta supera l’{Math.round(CARD_THRESHOLD * 100)}% del plafond o sta per
-          addebitare, si avvicina la scadenza di un debito o un buono è scaduto. La stessa cosa al massimo una volta a settimana.
+          addebitare, si avvicina la scadenza di un debito, un buono è scaduto o un budget di categoria è all’80%. E quando c’è qualcosa di strano tra le spese: un addebito doppio, una spesa molto più alta del solito o verso qualcuno mai pagato prima, un abbonamento nuovo o più caro. Il 1° del mese arriva il report. La stessa cosa al massimo una volta a settimana.
           {devices > 0 && <> Dispositivi iscritti: {devices}.</>}
         </p>
         <PushControl publicKey={pushPublicKey()} />

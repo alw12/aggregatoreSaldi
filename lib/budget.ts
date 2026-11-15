@@ -95,6 +95,7 @@ export type Recurring = {
   amount: number; // ultimo importo, positivo
   category: CategoryKey;
   months: number; // quante volte è passata
+  first: string;
   last: string;
   next: string; // prossimo addebito previsto
 };
@@ -144,6 +145,7 @@ export function recurringSpending(moves: Movement[], today: string, cat: CatOpts
         amount: -last.amount,
         category: categorize(last, cat),
         months: seen.length,
+        first: seen[0].date,
         last: last.date,
         next: nextMonthSameDay(last.date),
       });

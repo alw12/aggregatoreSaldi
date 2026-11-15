@@ -41,6 +41,11 @@ describe("avvisi", () => {
     expect(alerts.map((a) => a.key)).toEqual(["budget:ristoranti:2026-10:100", "budget:spesa:2026-10:80"]);
     expect(alerts[0].text).toContain("oltre il budget di ottobre");
   });
+  it("cose strane tra le spese recenti diventano avvisi", () => {
+    const mv = (id: string, date: string, amount: number, party: string) => ({ id, date, amount, currency: "EUR", party, account: "B, C", kind: "out" as const });
+    const alerts = computeAlerts(base({ moves: [mv("0", "2026-08-18", -5, "Conad"), mv("1", "2026-10-16", -59.9, "Zalando"), mv("2", "2026-10-17", -59.9, "Zalando")] }), "2026-10-18");
+    expect(alerts.map((a) => [a.key, a.href])).toEqual([["odd:doppio:2", "/categorie?p=Zalando"]]);
+  });
   it("tutto in ordine: nessun avviso", () => {
     expect(computeAlerts(base({}), "2026-10-18")).toEqual([]);
   });

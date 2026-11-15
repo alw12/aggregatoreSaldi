@@ -1,5 +1,6 @@
 import type { Overview } from "./overview";
 import { BUDGET_WARN, budgetLines } from "./budget";
+import { findOddities } from "./anomalies";
 
 /** Qualcosa da sistemare: mostrato in panoramica e inviato come notifica dal job giornaliero. */
 export type Alert = {
@@ -75,6 +76,11 @@ export function computeAlerts(o: Overview, today: string): Alert[] {
         : `${b.label}: hai già speso ${eur(b.spent)} dei ${eur(b.limit)} di budget di ${monthName}.`,
       href: "/budget",
     });
+  }
+
+  // Cose strane tra le spese degli ultimi giorni: il link apre i movimenti di quella controparte
+  for (const odd of findOddities(o.moves ?? [], today, { installments, rules: o.catRules })) {
+    out.push({ key: odd.key, level: "warn", text: odd.text, href: `/categorie?p=${encodeURIComponent(odd.party)}` });
   }
 
   if (o.portfolioError) out.push({ key: `portfolio:${today}`, level: "warn", text: "Prezzi del portafoglio non disponibili al momento.", href: "/portfolio" });
