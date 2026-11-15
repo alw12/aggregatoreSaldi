@@ -647,3 +647,20 @@ div.pie-item { padding: 6px 4px; }
 .ded-amt { font-weight: 500; white-space: nowrap; }
 .ded.off .tx-party, .ded.off .ded-amt { color: var(--faint); text-decoration: line-through; }
 [data-private] :is(.ded-amt) { filter: blur(7px); user-select: none; }
+
+/* ── Auto ────────────────────────────────────────────── */
+
+.car-per { font-size: 18px; color: var(--muted); letter-spacing: 0; }
+.car-lines { display: grid; }
+.car-line { border-top: 1px solid var(--border); }
+.car-line:first-child { border-top: 0; }
+.car-line > summary {
+  display: grid; grid-template-columns: 12px minmax(0, 11em) minmax(0, 1fr) 6.5em; gap: 12px; align-items: center;
+  padding: 10px 0; cursor: pointer; list-style: none;
+}
+.car-line > summary::-webkit-details-marker { display: none; }
+.car-label { display: grid; min-width: 0; }
+.car-bar { height: 8px; }
+.car-bar > span { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.car-figs { display: grid; justify-items: end; text-align: right; }
+@media (max-width: 479px) { .car-line > summary { grid-template-columns: 12px minmax(0, 1fr) 6em; } .car-bar { display: none; } }

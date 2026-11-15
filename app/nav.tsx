@@ -14,6 +14,7 @@ const SECTIONS = [
   { href: "/conti", label: "Conti" },
   { href: "/beni", label: "Beni" },
   { href: "/debiti", label: "Debiti" },
+  { href: "/auto", label: "Auto" },
   { href: "/730", label: "Spese 730" },
   { href: "/consigli", label: "Milionario" },
   { href: "/avvisi", label: "Avvisi" },

@@ -25,6 +25,7 @@ const MORE = [
   { href: "/conti", label: "Conti manuali" },
   { href: "/beni", label: "Beni" },
   { href: "/debiti", label: "Debiti" },
+  { href: "/auto", label: "Costo dell’auto" },
   { href: "/730", label: "Spese per il 730" },
   { href: "/consigli", label: "Verso il milione" },
   { href: "/avvisi", label: "Avvisi e notifiche" },
