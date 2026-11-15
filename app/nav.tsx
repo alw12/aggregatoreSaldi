@@ -7,6 +7,7 @@ const SECTIONS = [
   { href: "/grafici", label: "Grafici" },
   { href: "/movimenti", label: "Movimenti" },
   { href: "/budget", label: "Budget" },
+  { href: "/investimenti", label: "Investimenti" },
   { href: "/portfolio", label: "Portafoglio" },
   { href: "/buoni", label: "Buoni" },
   { href: "/carte", label: "Carte" },

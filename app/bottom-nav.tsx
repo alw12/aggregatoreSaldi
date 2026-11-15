@@ -14,11 +14,12 @@ const TABS = [
   { href: "/", label: "Panoramica", icon: icon(<><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /></>) },
   { href: "/grafici", label: "Grafici", icon: icon(<><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>) },
   { href: "/movimenti", label: "Movimenti", icon: icon(<><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></>) },
-  { href: "/portfolio", label: "Portafoglio", icon: icon(<><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></>) },
+  { href: "/investimenti", label: "Investimenti", icon: icon(<><path d="M3 17l6-6 4 4 8-8" /><path d="M15 7h6v6" /></>) },
 ] as const;
 
 const MORE = [
   { href: "/budget", label: "Budget e spese ricorrenti" },
+  { href: "/portfolio", label: "Portafoglio (modifica posizioni)" },
   { href: "/buoni", label: "Buoni postali" },
   { href: "/carte", label: "Carte di credito" },
   { href: "/conti", label: "Conti manuali" },

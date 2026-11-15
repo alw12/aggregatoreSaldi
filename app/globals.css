@@ -588,3 +588,21 @@ div.pie-item { padding: 6px 4px; }
 .limit-label { display: flex; align-items: center; gap: 8px; color: var(--text); }
 .limit-usual { margin-left: auto; font-size: 12px; color: var(--muted); }
 [data-private] :is(.bline-figs, .goal-value, .due-amt, .limit-usual, .budget-left strong) { filter: blur(7px); user-select: none; }
+
+/* ── Investimenti ────────────────────────────────────── */
+
+.inv-hero { margin: 4px 0 20px; }
+.inv-total { font-size: clamp(36px, 10vw, 52px); font-weight: 300; letter-spacing: -0.035em; line-height: 1.05; margin: 4px 0 8px; }
+.inv-gain { font-size: 15px; }
+.inv-gain .gain { font-size: 15px; }
+.inv-muted { color: var(--muted); font-weight: 400; }
+.inv-small { font-size: 12px; margin-top: 4px; }
+.inv-list { display: grid; }
+.inv-row { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 0; border-top: 1px solid var(--border); }
+.inv-row:first-child, .inv-dep:first-child { border-top: 0; }
+.inv-main { display: grid; min-width: 0; }
+.inv-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-meta { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-figs { display: grid; justify-items: end; gap: 1px; text-align: right; }
+.inv-figs .amount { font-weight: 500; }
+.inv-dep { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); }
