@@ -38,6 +38,9 @@ function when(iso: string | null) {
   }).format(new Date(iso));
 }
 
+/** Un importo positivo che arrotondato verrebbe 0,00 €: meglio scrivere "< 0,01 €". */
+const tiny = (n: number) => n > 0 && n < 0.005;
+
 const shortDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("it-IT", { day: "numeric", month: "short", timeZone: "UTC" });
 
 /** Il totale grande, con i centesimi in tono minore. */
@@ -323,7 +326,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                 const sum = manualAccounts.filter((a) => a.currency === "EUR").reduce((s, a) => s + a.amount, 0);
                 return [
                   `${manualAccounts.length} ${manualAccounts.length === 1 ? "conto" : "conti"} che aggiorni tu`,
-                  sum > 0 && owned > 0 ? `${share(sum / owned)} del totale` : sum === 0 ? "tutti a zero" : null,
+                  sum > 0 && owned > 0 ? `${share(sum / owned)} del totale` : sum === 0 ? (manualAccounts.length === 1 ? "a zero" : "tutti a zero") : null,
                 ].filter(Boolean).join(" · ");
               })()}
               sum={fmt(manualAccounts.filter((a) => a.currency === "EUR").reduce((s, a) => s + a.amount, 0), "EUR")}
@@ -390,7 +393,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
                       </div>
                     )}
                   </div>
-                  {h.value !== null ? <div className="amount">{fmt(h.value, "EUR")}</div> : <div className="err">{h.error}</div>}
+                  {h.value !== null ? <div className="amount">{tiny(h.value) ? "< 0,01 €" : fmt(h.value, "EUR")}</div> : <div className="err">{h.error}</div>}
                 </div>
               ))}
             </Group>

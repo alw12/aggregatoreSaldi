@@ -69,8 +69,8 @@ export function HoldingBars({ rows, caption, note, slot = 1, debt = false }: { r
             {r.sub && <span className="hbar-sub">{r.sub}</span>}
           </span>
           <span className="hbar-value">
-            {eur(r.value)}
-            {sorted.length > 1 && <span className="hbar-pct">{pct(r.value / total)}</span>}
+            {r.value < 0.005 ? "< 0,01 €" : eur(r.value)}
+            {sorted.length > 1 && <span className="hbar-pct">{r.value / total < 0.001 ? "< 0,1%" : pct(r.value / total)}</span>}
           </span>
           <span className="hbar-track">
             <span className="hbar-fill" style={{ width: `${Math.max(1.5, (r.value / max) * 100)}%` }} />
