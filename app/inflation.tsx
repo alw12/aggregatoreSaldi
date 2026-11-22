@@ -97,7 +97,13 @@ function WealthRows({ i }: { i: WealthImpact }) {
       <div className="infl-row infl-total">
         <div>
           <div className="account-label">Patrimonio netto <span className="infl-amt">{eur0(i.net.amount)}</span></div>
-          <div className="account-iban">se non rende nulla, fra un anno compra quanto {<span className="infl-amt">{eur0(i.net.amount - i.net.loss)}</span>} di oggi</div>
+          <div className="account-iban">
+            {i.net.amount >= 0 ? (
+              <>se non rende nulla, fra un anno compra quanto <span className="infl-amt">{eur0(i.net.amount - i.net.loss)}</span> di oggi</>
+            ) : (
+              <>in rosso: i debiti superano il resto, e l’inflazione ne riduce il peso reale</>
+            )}
+          </div>
         </div>
         <div className={`infl-amt infl-effect ${i.net.loss > 0 ? "worse" : "better"}`}>{eurS(-i.net.loss)}</div>
       </div>
