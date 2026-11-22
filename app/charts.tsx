@@ -44,27 +44,37 @@ export function AllocationBar({ parts }: { parts: Part[] }) {
   );
 }
 
-export type BarRow = { key: string; label: string; value: number };
+export type BarRow = { key: string; label: string; value: number; sub?: ReactNode };
 
 /**
- * Barre orizzontali ordinate per valore, con l'importo scritto a fine barra.
+ * Barre orizzontali ordinate per valore, con l'importo scritto a fine barra e sotto la quota sul totale.
+ * `sub` aggiunge una riga di dettaglio sotto il nome (quote, guadagno, data…).
  * `slot` dà alle barre il colore della voce che rappresentano (es. 4 = beni); `debt` il rosso dei debiti.
  */
-export function HoldingBars({ rows, caption, slot = 1, debt = false }: { rows: BarRow[]; caption: string; slot?: Slot; debt?: boolean }) {
+export function HoldingBars({ rows, caption, note, slot = 1, debt = false }: { rows: BarRow[]; caption: string; note?: ReactNode; slot?: Slot; debt?: boolean }) {
   const sorted = rows.filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
   const max = sorted[0]?.value ?? 0;
   const total = sorted.reduce((s, r) => s + r.value, 0);
   if (max <= 0) return null;
   return (
     <figure className={`hbars slot${slot}${debt ? " debt" : ""}`}>
-      <figcaption className="chart-title">{caption}</figcaption>
+      <figcaption>
+        <div className="chart-title">{caption}</div>
+        {note && <p className="chart-note" style={{ margin: "2px 0 0" }}>{note}</p>}
+      </figcaption>
       {sorted.map((r) => (
         <div key={r.key} className="hbar" title={`${r.label}: ${eur(r.value)} (${pct(r.value / total)})`}>
-          <span className="hbar-label">{r.label}</span>
+          <span className="hbar-label">
+            {r.label}
+            {r.sub && <span className="hbar-sub">{r.sub}</span>}
+          </span>
+          <span className="hbar-value">
+            {eur(r.value)}
+            {sorted.length > 1 && <span className="hbar-pct">{pct(r.value / total)}</span>}
+          </span>
           <span className="hbar-track">
             <span className="hbar-fill" style={{ width: `${Math.max(1.5, (r.value / max) * 100)}%` }} />
           </span>
-          <span className="hbar-value">{eur(r.value)}</span>
         </div>
       ))}
     </figure>

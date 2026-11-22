@@ -224,6 +224,13 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .hbar-track { grid-area: track; height: 10px; }
 .hbar-fill { display: block; height: 100%; background: var(--s1); border-radius: 0 4px 4px 0; }
 .hbar-value { font-weight: 500; text-align: right; white-space: nowrap; }
+.hbar-label { min-width: 0; }
+.group-note { color: var(--muted); font-size: 13px; padding-bottom: 10px; }
+.muted-sum { color: var(--muted); font-weight: 400; }
+.hbar-sub { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.hbar-pct { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+:is(.hbar-sub, .gain-pct, .account-iban, .group-note, .chart-note) .up { color: var(--accent); }
+:is(.hbar-sub, .gain-pct, .account-iban, .group-note, .chart-note) .down { color: var(--negative); }
 
 .meter { margin-top: 8px; }
 .meter-track { height: 6px; border-radius: 999px; background: var(--sunken); overflow: hidden; }
@@ -426,7 +433,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 /* ── Nascondi importi ────────────────────────────────── */
 
 [data-private] :is(.hero-value, .hero-alt-value, .hero-other, .change, .amount, .bank-sum, .gain, .liability-value,
-  .alloc-value, .tile-value, .tile-sub, .hbar-value, .tooltip-value, .split-amt, .trend .tick, .meter-text,
+  .alloc-value, .tile-value, .tile-sub, .hbar-value, .money, .tooltip-value, .split-amt, .trend .tick, .meter-text,
   .chart-note strong, .step-body strong, .tx-amount, .flow-value, .loan-figure) {
   filter: blur(7px); user-select: none;
 }
@@ -459,9 +466,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .group[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
 .group > summary > :first-child { flex: 1; min-width: 0; }
 .group:hover { border-color: var(--faint); }
-.group > .account, .group > .err { margin: 0 20px; }
+.group > .account, .group > .err, .group > .group-note { margin: 0 20px; }
 .group > .group-foot { padding: 0 12px 12px; }
-@media (min-width: 640px) { .group > summary { padding: 18px 24px; } .group > .account, .group > .err { margin: 0 24px; } }
+@media (min-width: 640px) { .group > summary { padding: 18px 24px; } .group > .account, .group > .err, .group > .group-note { margin: 0 24px; } }
 
 /* ── Caricamento ─────────────────────────────────────── */
 

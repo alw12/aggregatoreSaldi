@@ -10,12 +10,11 @@ import { byAssetClass, byInstrument } from "@/lib/portfolio";
 import { loadOverview, type Overview } from "@/lib/overview";
 import { CATEGORIES } from "@/lib/beni";
 import { recordSnapshot } from "@/lib/history";
+import { Gain, longDate, qty, share, years } from "@/app/detail-format";
 
 export const dynamic = "force-dynamic";
 
 const eur = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always" }).format(n);
-const signed = (n: number) =>
-  new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR", useGrouping: "always", signDisplay: "always" }).format(n);
 const shortDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("it-IT", { day: "numeric", month: "short", timeZone: "UTC" });
 
 function Tile({ label, value, sub, neg }: { label: string; value: number; sub?: string; neg?: boolean }) {
@@ -84,6 +83,16 @@ export default async function ChartsPage() {
     ...o.cards.map((c) => ({ key: `c-${c.id}`, label: `Carta ${c.name}`, value: c.balance })),
   ];
   const beniByCat = CATEGORIES.map((c) => ({ key: c, label: c, value: o.beni.filter((p) => p.category === c).reduce((s, p) => s + p.value, 0) }));
+  const instruments = byInstrument(o.holdings);
+  const classes = byAssetClass(o.holdings);
+  const multiBroker = new Set(o.holdings.map((h) => h.broker)).size > 1;
+  const noCost = instruments.filter((i) => i.gain === null).length;
+  const bondsKnown = o.bonds.filter((b) => b.valueSource !== "nominale");
+  const bondsCapital = bondsKnown.reduce((s, b) => s + b.capital, 0);
+  const bondsGain = bondsKnown.reduce((s, b) => s + b.value - b.capital, 0);
+  const beniWithPrice = o.beni.filter((p) => p.purchasePrice);
+  const beniPaid = beniWithPrice.reduce((s, p) => s + (p.purchasePrice ?? 0), 0);
+  const beniNowOfPaid = beniWithPrice.reduce((s, p) => s + p.value, 0);
   const snap = o.today;
   if (snap) after(() => recordSnapshot(snap));
   const days = o.days;
@@ -166,24 +175,55 @@ export default async function ChartsPage() {
       )}
 
       <h2 className="section-head">Investimenti</h2>
+      {(o.holdings.length > 0 || o.bonds.length > 0) && (
+        <p className="chart-note">
+          Investito in tutto <strong>{eur(t.invested)}</strong>
+          {assets > 0 && <>, il {share(t.invested / assets)} di quello che possiedi</>}: {eur(t.holdings)} tra ETF, oro e crypto
+          {t.bonds > 0 && <> e {eur(t.bonds)} in buoni postali</>}.
+        </p>
+      )}
       {o.holdings.length > 0 && (
         <div className="duo">
           <section className="card chart-card">
             <HoldingBars
               caption={`Posizioni: ${eur(t.holdings)}`}
-              rows={byInstrument(o.holdings).map((i) => ({ key: i.id, label: i.name, value: i.value }))}
+              note="Ogni strumento con il suo valore di oggi e la quota sul portafoglio."
+              rows={instruments.map((i) => ({
+                key: i.id,
+                label: i.name,
+                value: i.value,
+                sub: (
+                  <>
+                    {qty(i.qty)} quote
+                    {i.gain !== null && i.cost ? <> · <Gain gain={i.gain} cost={i.cost} /></> : <> · senza prezzo di carico</>}
+                    {i.brokers.length > 1 || multiBroker ? <> · {[...new Set(i.brokers)].join(", ")}</> : null}
+                  </>
+                ),
+              }))}
               slot={2}
             />
-            {t.holdingsGain !== null && t.holdingsCost && (
+            {t.holdingsGain !== null && t.holdingsCost ? (
               <p className="chart-note" style={{ margin: "12px 0 0" }}>
-                Guadagno sulle posizioni con prezzo di carico: <strong>{signed(t.holdingsGain)}</strong> su {eur(t.holdingsCost)} investiti.
+                Hai pagato <strong>{eur(t.holdingsCost)}</strong> le posizioni con prezzo di carico, che oggi valgono {eur(t.holdingsCost + t.holdingsGain)}:{" "}
+                <Gain gain={t.holdingsGain} cost={t.holdingsCost} />.
+                {noCost > 0 && (
+                  <> {noCost === 1 ? "Una posizione non ha" : `${noCost} posizioni non hanno`} il prezzo di carico: aggiungilo in <Link href="/portfolio">Portafoglio</Link> per vederne il guadagno.</>
+                )}
+              </p>
+            ) : (
+              <p className="chart-note" style={{ margin: "12px 0 0" }}>
+                Per vedere guadagni e perdite aggiungi il prezzo di carico in <Link href="/portfolio">Portafoglio</Link>.
               </p>
             )}
           </section>
           <section className="card chart-card">
             <HoldingBars
               caption="Per tipo"
-              rows={byAssetClass(o.holdings).map((c) => ({ key: c.cls, label: c.label, value: c.value }))}
+              note="Quanto pesa ogni tipo di investimento: più è diviso, meno dipendi da uno solo."
+              rows={classes.map((c) => {
+                const n = o.holdings.filter((h) => h.cls === c.cls && (h.value ?? 0) > 0).length;
+                return { key: c.cls, label: c.label, value: c.value, sub: n === 1 ? "1 posizione" : `${n} posizioni` };
+              })}
               slot={2}
             />
           </section>
@@ -193,7 +233,26 @@ export default async function ChartsPage() {
         <section className="card chart-card">
           <HoldingBars
             caption={`Buoni postali: ${eur(t.bonds)}`}
-            rows={o.bonds.map((b) => ({ key: b.id, label: `${b.name} (${eur(b.capital)} sottoscritti)`, value: b.value }))}
+            note={
+              bondsCapital > 0 && bondsGain !== 0 ? (
+                <>Sottoscritti {eur(bondsCapital)}, maturati finora <Gain gain={bondsGain} cost={bondsCapital} /> al netto delle tasse.</>
+              ) : (
+                "Valori di rimborso netti, cioè quanto incasseresti chiudendoli oggi."
+              )
+            }
+            rows={o.bonds.map((b) => ({
+              key: b.id,
+              label: b.name,
+              value: b.value,
+              sub: (
+                <>
+                  {eur(b.capital)} dal {longDate(b.subscribedAt)}
+                  {b.valueSource !== "nominale" && <> · <Gain gain={b.value - b.capital} cost={b.capital} /> in {years(b.yearsHeld)}</>}
+                  {b.matured ? " · scaduto, non matura più" : b.maturityYears !== null ? ` · dura fino a ${b.maturityYears} anni` : ""}
+                  {b.valueSource === "stima" ? " · stima" : b.valueSource === "nominale" ? " · solo nominale" : ""}
+                </>
+              ),
+            }))}
             slot={3}
           />
         </section>
@@ -202,14 +261,51 @@ export default async function ChartsPage() {
 
       <h2 className="section-head">Beni</h2>
       {o.beni.length > 0 ? (
-        <div className="duo">
-          <section className="card chart-card">
-            <HoldingBars caption={`Per categoria: ${eur(t.beni)}`} rows={beniByCat} slot={4} />
-          </section>
-          <section className="card chart-card">
-            <HoldingBars caption="I più preziosi" rows={o.beni.slice().sort((a, b) => b.value - a.value).slice(0, 6).map((p) => ({ key: p.id, label: p.name, value: p.value }))} slot={4} />
-          </section>
-        </div>
+        <>
+          <p className="chart-note">
+            Valgono <strong>{eur(t.beni)}</strong> se li vendessi oggi. Non entrano nel patrimonio netto della Panoramica: con i beni
+            arriveresti a {eur(t.netWithBeni)}.
+            {beniPaid > 0 && <> Li hai pagati {eur(beniPaid)}: <Gain gain={beniNowOfPaid - beniPaid} cost={beniPaid} /> da allora.</>}
+          </p>
+          <div className="duo">
+            <section className="card chart-card">
+              <HoldingBars
+                caption={`Per categoria: ${eur(t.beni)}`}
+                rows={beniByCat.map((c) => {
+                  const n = o.beni.filter((p) => p.category === c.key).length;
+                  return { ...c, sub: n === 1 ? "1 bene" : `${n} beni` };
+                })}
+                slot={4}
+              />
+            </section>
+            <section className="card chart-card">
+              <HoldingBars
+                caption="I più preziosi"
+                rows={o.beni
+                  .slice()
+                  .sort((a, b) => b.value - a.value)
+                  .slice(0, 6)
+                  .map((p) => ({
+                    key: p.id,
+                    label: p.name,
+                    value: p.value,
+                    sub: (
+                      <>
+                        {p.category}
+                        {p.purchasePrice ? (
+                          <>
+                            {" "}· pagato {eur(p.purchasePrice)}
+                            {p.purchaseDate && <> nel {p.purchaseDate.slice(0, 4)}</>} · <Gain gain={p.value - p.purchasePrice} cost={p.purchasePrice} />
+                          </>
+                        ) : null}
+                      </>
+                    ),
+                  }))}
+                slot={4}
+              />
+            </section>
+          </div>
+        </>
       ) : (
         <p className="chart-note">Nessun bene. <Link href="/beni">Aggiungine uno</Link>.</p>
       )}
