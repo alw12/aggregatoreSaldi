@@ -10,7 +10,9 @@ import { computeAlerts } from "@/lib/alerts";
 import { addMonths, runway } from "@/lib/budget";
 import { reportMonths } from "@/lib/report";
 import { loadMovements } from "@/lib/transactions";
+import { loadInflation, wealthImpact } from "@/lib/inflation";
 import { RunwayCard } from "./runway";
+import { InflationCard } from "./inflation";
 import { QuickEdit } from "./quick-edit";
 import { Nav } from "./nav";
 import { AutoRefresh } from "./auto-refresh";
@@ -106,6 +108,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     );
   }
 
+  // L'inflazione arriva da Eurostat (in cache 12 ore): parte insieme al resto, non rallenta la pagina
+  const inflationP = loadInflation();
   let o: Overview;
   try {
     o = await loadOverview(psuHeadersFrom(await headers()));
@@ -122,6 +126,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
     );
   }
 
+  const inflation = await inflationP;
   const { banks, manual: manualAccounts, holdings, portfolioError, bonds, cards, debts, totals: t } = o;
   const classes = byAssetClass(holdings);
   const withCost = holdings.filter((h) => h.gain !== null);
@@ -222,6 +227,8 @@ export default async function Home({ searchParams }: PageProps<"/">) {
           )}
 
           {autonomy && <RunwayCard r={autonomy} link={<> Dettagli in <Link href="/budget">Budget</Link>.</>} />}
+
+          {inflation && <InflationCard inf={inflation} impact={wealthImpact(inflation, t, o.days)} />}
 
           <section className="card chart-card">
             <div className="chart-title">Andamento</div>

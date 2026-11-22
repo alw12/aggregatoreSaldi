@@ -638,6 +638,31 @@ div.pie-item { padding: 6px 4px; }
 .runway-scale > span[style] { position: absolute; transform: translateX(-50%); }
 [data-private] :is(.runway-value) { filter: blur(7px); user-select: none; }
 
+/* ── Inflazione ──────────────────────────────────────── */
+
+.infl-value { font-size: 40px; font-weight: 300; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.infl-diff { font-weight: 500; white-space: nowrap; }
+.infl-diff.worse { color: var(--negative); }
+.infl-diff.better { color: var(--accent); }
+.infl-bars { position: relative; display: flex; gap: 4px; height: 72px; margin-top: 4px; }
+.infl-col { position: relative; flex: 1; min-width: 0; }
+.infl-bar { position: absolute; left: 0; right: 0; border-radius: 3px 3px 0 0; background: var(--s1); opacity: .45; min-height: 2px; }
+.infl-bar.over { background: var(--warn-text); }
+.infl-bar.last { opacity: 1; }
+.infl-target { position: absolute; left: 0; right: 0; z-index: 1; border-top: 1px dashed var(--text); opacity: .55; pointer-events: none; }
+.infl-target > span { position: absolute; left: 0; top: -15px; font-size: 10px; color: var(--muted); background: var(--surface); padding: 0 3px; }
+.infl-axis { display: flex; justify-content: space-between; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.infl-source { color: var(--muted); font-size: 12px; margin: 12px 0 0; }
+.infl-wealth { margin-top: 14px; }
+.infl-wealth-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.infl-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--border); }
+.infl-row .infl-amt:not(.infl-effect) { color: var(--muted); font-weight: 400; }
+.infl-effect { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.infl-effect.worse { color: var(--negative); }
+.infl-effect.better { color: var(--accent); }
+.infl-total .account-label { font-weight: 650; }
+[data-private] :is(.infl-amt) { filter: blur(7px); user-select: none; }
+
 /* ── Spese 730 ───────────────────────────────────────── */
 
 .ded { display: grid; grid-template-columns: 6ch minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--border); }
