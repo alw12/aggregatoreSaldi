@@ -44,3 +44,6 @@ next-env.d.ts
 # chiavi private
 *.pem
 *.key
+
+# report dei test (vitest)
+/.vitest/

@@ -44,6 +44,10 @@ export function AllocationBar({ parts }: { parts: Part[] }) {
   );
 }
 
+/** Importi e quote che arrotondati verrebbero 0,00 € o 0%: scritti come "< 0,01 €" e "< 0,1%". */
+const money = (n: number) => (n > 0 && n < 0.005 ? "< 0,01 €" : eur(n));
+const share = (n: number) => (n > 0 && n < 0.001 ? "< 0,1%" : pct(n));
+
 export type BarRow = { key: string; label: string; value: number; sub?: ReactNode };
 
 /**
@@ -63,14 +67,14 @@ export function HoldingBars({ rows, caption, note, slot = 1, debt = false }: { r
         {note && <p className="chart-note" style={{ margin: "2px 0 0" }}>{note}</p>}
       </figcaption>
       {sorted.map((r) => (
-        <div key={r.key} className="hbar" title={`${r.label}: ${eur(r.value)} (${pct(r.value / total)})`}>
+        <div key={r.key} className="hbar" title={`${r.label}: ${money(r.value)} (${share(r.value / total)})`}>
           <span className="hbar-label">
             {r.label}
             {r.sub && <span className="hbar-sub">{r.sub}</span>}
           </span>
           <span className="hbar-value">
-            {r.value < 0.005 ? "< 0,01 €" : eur(r.value)}
-            {sorted.length > 1 && <span className="hbar-pct">{r.value / total < 0.001 ? "< 0,1%" : pct(r.value / total)}</span>}
+            {money(r.value)}
+            {sorted.length > 1 && <span className="hbar-pct">{share(r.value / total)}</span>}
           </span>
           <span className="hbar-track">
             <span className="hbar-fill" style={{ width: `${Math.max(1.5, (r.value / max) * 100)}%` }} />
