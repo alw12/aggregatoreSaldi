@@ -728,3 +728,15 @@ div.pie-item { padding: 6px 4px; }
 .compare-lines { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--muted); font-size: 13px; }
 .compare-lines strong { color: var(--text); font-weight: 600; }
 [data-private] :is(.delta, .compare-box strong) { filter: blur(7px); user-select: none; }
+
+/* ── Claude: connettore e consenso ───────────────────── */
+
+.claude-list > .account:first-child { border-top: 0; padding-top: 0; }
+.steps-list { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 10px; font-size: 14px; }
+.copy-field { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding: 6px 6px 6px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--sunken); }
+.copy-field code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
+.consent { max-width: 420px; }
+.consent h1 { margin-bottom: 4px; }
+.consent-list { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
+.consent-note { color: var(--muted); font-size: 13px; }
+.consent-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

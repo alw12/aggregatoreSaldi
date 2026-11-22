@@ -19,6 +19,7 @@ const SECTIONS = [
   { href: "/730", label: "Spese 730" },
   { href: "/consigli", label: "Milionario" },
   { href: "/avvisi", label: "Avvisi" },
+  { href: "/claude", label: "Claude" },
 ] as const;
 
 /** Testata comune: marchio, sezioni (su telefono nella barra in basso), privacy, aggiorna ed esci. */

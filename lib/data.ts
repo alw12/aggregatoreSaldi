@@ -86,6 +86,8 @@ async function readBank(s: StoredSession, psu: PsuHeaders, prev: CachedBalances 
 export type LoadOptions = {
   /** true = aspetta sempre la banca se la lettura è vecchia (es. job giornaliero); altrimenti la rilegge in background. */
   live?: boolean;
+  /** true = solo l'ultima lettura salvata, mai la banca (es. il connettore di Claude: le letture PSD2 sono contate). */
+  cacheOnly?: boolean;
 };
 
 async function loadBank(s: StoredSession, psu: PsuHeaders, refreshAt: string | null, opts: LoadOptions): Promise<BankView> {
@@ -108,6 +110,11 @@ async function loadBank(s: StoredSession, psu: PsuHeaders, refreshAt: string | n
   }
 
   const cached = await getCachedBalances(s.sessionId);
+  if (opts.cacheOnly) {
+    return cached
+      ? { ...base, fetchedAt: cached.fetchedAt, accounts: cached.data.accounts as AccountView[] }
+      : { ...base, fetchedAt: null, accounts: s.accounts.map((a) => ({ ...a, amount: null, error: "Mai letto: apri Saldi per leggerlo" })) };
+  }
   // "Aggiorna" appena premuto: aspetta la banca. Se la banca non risponde, dopo un paio di minuti
   // si torna a mostrare subito l'ultima lettura, invece di riaspettarla a ogni apertura
   const forced =

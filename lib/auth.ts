@@ -43,6 +43,25 @@ export async function createAuthToken(role: Role): Promise<string> {
     .sign(await key);
 }
 
+/** Il ruolo del cookie di login, se valido: serve dove il bot non deve entrare (es. autorizzare Claude). */
+export async function authRole(token: string | undefined): Promise<Role | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(
+      token,
+      async (header) => {
+        const key = secretKey(header.kid === "bot" ? "bot" : "owner");
+        if (!key) throw new Error("ruolo disattivato");
+        return key;
+      },
+      { algorithms: ["HS256"] },
+    );
+    return payload.sub === "bot" ? "bot" : "owner";
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyAuthToken(token: string | undefined): Promise<boolean> {
   if (!token) return false;
   try {
