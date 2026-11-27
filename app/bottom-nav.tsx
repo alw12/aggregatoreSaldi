@@ -18,6 +18,7 @@ const TABS = [
 ] as const;
 
 const MORE = [
+  { href: "/bonifici", label: "Bonifici" },
   { href: "/budget", label: "Budget e spese ricorrenti" },
   { href: "/report", label: "Report del mese" },
   { href: "/portfolio", label: "Portafoglio (modifica posizioni)" },

@@ -740,3 +740,19 @@ div.pie-item { padding: 6px 4px; }
 .consent-list { margin: 4px 0 0; padding-left: 20px; display: grid; gap: 4px; font-size: 14px; }
 .consent-note { color: var(--muted); font-size: 13px; }
 .consent-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* ── Bonifici ────────────────────────────────────────── */
+
+.pay-review { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; font-size: 15px; }
+.pay-review dt { color: var(--muted); font-size: 14px; }
+.pay-review dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.pay-review .account-iban { display: block; }
+.pay-amount { font-size: 18px; font-weight: 650; }
+.pay-actions { display: flex; justify-content: flex-end; gap: 4px; }
+.pay-quick { display: grid; gap: 10px; }
+.pay-quick-label { font-size: 13px; color: var(--muted); }
+.pay-status { font-size: 13px; }
+.pay-status.ok { color: var(--accent); }
+.pay-status.ko { color: var(--negative); }
+.pay-status.wait { color: var(--warn-text); }
+.pay-void { color: var(--muted); text-decoration: line-through; }

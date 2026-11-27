@@ -210,3 +210,41 @@ export async function getTransactions(accountUid: string, dateFrom: string, psu?
   }
   return out;
 }
+
+/* ---------- Bonifici (PIS) ---------- */
+
+export type PaymentTypeInfo = {
+  payment_type: string;
+  psu_type?: string;
+  currencies?: string[];
+  max_transactions?: number;
+  debtor_account_required?: boolean;
+  creditor_name_required?: boolean;
+  remittance_information_required?: boolean;
+};
+export type PisAspsp = { name: string; country: string; payments?: PaymentTypeInfo[] };
+
+/** Banche di un paese che accettano bonifici via API, con i tipi supportati (SEPA, INST_SEPA…). */
+export async function listPisAspsps(country: string): Promise<PisAspsp[]> {
+  const data = await ebFetch<{ aspsps: PisAspsp[] }>(
+    `/aspsps?country=${encodeURIComponent(country)}&psu_type=personal&service=PIS`,
+  );
+  return data.aspsps;
+}
+
+export type CreatedPayment = { payment_id: string; status: string; url: string };
+
+export async function createPayment(body: unknown, psu?: PsuHeaders): Promise<CreatedPayment> {
+  return ebFetch("/payments", { method: "POST", body: JSON.stringify(body), psu });
+}
+
+export type PaymentInfo = {
+  payment_id: string;
+  status: string;
+  final_status: boolean;
+  status_reason_information?: { status_reason_code: string; status_reason_description: string } | null;
+};
+
+export async function getPayment(paymentId: string): Promise<PaymentInfo> {
+  return ebFetch(`/payments/${encodeURIComponent(paymentId)}`);
+}
