@@ -5,7 +5,8 @@ import { AUTH_COOKIE, authRole } from "@/lib/auth";
 import { loadDashboard, psuHeadersFrom, type AccountView, type BankView } from "@/lib/data";
 import { getPayment as fetchPayment } from "@/lib/eb";
 import { listPayments, recentBeneficiaries, savePayment, type StoredPayment } from "@/lib/payment-store";
-import { describeStatus, formatIban, maskIban, MAX_NAME, MAX_REFERENCE } from "@/lib/payments";
+import { bankSupport, describeStatus, formatIban, maskIban, MAX_NAME, MAX_REFERENCE, type BankSupport } from "@/lib/payments";
+import { pisCoverage, type PisCoverage } from "@/lib/pis";
 import { hasStore } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,20 @@ async function refreshStatuses(payments: StoredPayment[]): Promise<StoredPayment
   return payments.map((p) => byId.get(p.id) ?? p);
 }
 
+/** Cosa accetta una banca, in una riga. */
+function SupportLine({ s, bank }: { s: BankSupport; bank: BankView }) {
+  if (bank.expired) return <span className="pay-status ko">Consenso scaduto: ricollega la banca</span>;
+  if (!bank.accounts.some((a) => a.iban)) return <span className="pay-status ko">Nessun conto con IBAN collegato: ricollega la banca</span>;
+  if (s.kind === "unknown") return <span className="pay-status wait">Non verificabile: {s.error}</span>;
+  if (s.kind === "none") return <span className="pay-status ko">Non accetta bonifici via Enable Banking</span>;
+  const yes = (b: boolean | null) => (b === null ? "non indicato" : b ? "sì" : "no");
+  return (
+    <span className={`pay-status ${s.ordinary ? "ok" : "wait"}`}>
+      Ordinario: {yes(s.ordinary)} · Istantaneo: {yes(s.instant)}
+    </span>
+  );
+}
+
 function StatusLine({ p }: { p: StoredPayment }) {
   if (p.status === "error") return <span className="pay-status ko">Non autorizzato{p.reason ? `: ${p.reason}` : ""}</span>;
   const s = describeStatus(p.status, p.final);
@@ -59,18 +74,24 @@ export default async function TransfersPage({ searchParams }: PageProps<"/bonifi
 
   let banks: BankView[] = [];
   let payments: StoredPayment[] = [];
+  let coverage: Record<string, PisCoverage> = {};
   let loadError: string | null = null;
   if (hasStore()) {
     try {
       // Solo l'ultima lettura salvata: per scegliere il conto non serve rileggere la banca
       [banks, payments] = await Promise.all([loadDashboard(psuHeadersFrom(await headers()), { cacheOnly: true }), listPayments()]);
-      payments = await refreshStatuses(payments);
+      [payments, coverage] = await Promise.all([refreshStatuses(payments), pisCoverage(banks.map((b) => b.country))]);
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
     }
   }
 
-  const sources: Source[] = banks.filter((b) => !b.expired).flatMap((bank) => bank.accounts.filter((a) => a.iban).map((account) => ({ bank, account })));
+  const support = new Map(banks.map((b) => [b.sessionId, bankSupport({ name: b.bank, country: b.country }, coverage)]));
+  // Prima i conti delle banche che accettano bonifici: il primo è quello proposto
+  const sources: Source[] = banks
+    .filter((b) => !b.expired)
+    .flatMap((bank) => bank.accounts.filter((a) => a.iban).map((account) => ({ bank, account })))
+    .sort((a, b) => Number(support.get(a.bank.sessionId)?.kind === "none") - Number(support.get(b.bank.sessionId)?.kind === "none"));
   const draft = draftId ? payments.find((p) => p.id === draftId && p.status === "draft") ?? null : null;
   const outcome = outcomeId ? payments.find((p) => p.id === outcomeId) ?? null : null;
   const history = payments.filter((p) => p.status !== "draft");
@@ -108,6 +129,26 @@ export default async function TransfersPage({ searchParams }: PageProps<"/bonifi
         <div className={`notice${describeStatus(outcome.status).tone === "ko" || outcome.status === "error" ? " error" : " ok"}`}>
           {fmt(outcome.amount, outcome.currency)} a {outcome.name}: <StatusLine p={outcome} />
         </div>
+      )}
+
+      {!draft && banks.length > 0 && (
+        <section className="card bank">
+          <div className="bank-head">
+            <div className="bank-name">Le tue banche</div>
+          </div>
+          {banks.map((b) => (
+            <div key={b.sessionId} className="account">
+              <div>
+                <div className="account-label">{b.bank}</div>
+                <div className="account-iban"><SupportLine s={support.get(b.sessionId)!} bank={b} /></div>
+              </div>
+            </div>
+          ))}
+          <p className="form-hint" style={{ margin: "10px 0 0" }}>
+            Dall&apos;elenco ufficiale di Enable Banking, riletto due volte al giorno. Dice cosa accetta la banca: per partire serve anche
+            che la tua applicazione Enable Banking sia abilitata ai pagamenti.
+          </p>
+        </section>
       )}
 
       {draft ? (
@@ -162,7 +203,7 @@ export default async function TransfersPage({ searchParams }: PageProps<"/bonifi
             <select name="from" defaultValue={v.da} required>
               {sources.map(({ bank, account }) => (
                 <option key={account.uid} value={account.uid}>
-                  {bank.bank} · {account.label} ({maskIban(account.iban)})
+                  {bank.bank} · {account.label} ({maskIban(account.iban)}){support.get(bank.sessionId)?.kind === "none" ? " · non accetta bonifici" : ""}
                 </option>
               ))}
             </select>
