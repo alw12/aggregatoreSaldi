@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Nav } from "@/app/nav";
 import { AutoRefresh } from "@/app/auto-refresh";
 import { headers } from "next/headers";
@@ -71,6 +72,7 @@ export default async function BankPage(props: PageProps<"/banca/[sessionId]">) {
           {a.manualAt && (
             <button className="btn" type="submit" name="action" value="clear" formNoValidate>Usa saldo della banca</button>
           )}
+          {a.iban && !bank.expired && <Link className="btn" href={`/bonifici?da=${encodeURIComponent(a.uid)}`}>Fai un bonifico da questo conto</Link>}
         </form>
       ))}
     </main>

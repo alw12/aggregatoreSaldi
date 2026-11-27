@@ -1,11 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { startAuth } from "@/lib/eb";
 import { STATE_COOKIE } from "@/lib/store";
+import { ebRedirectUrl } from "@/lib/origin";
 
-function redirectUrl(request: NextRequest): string {
-  // Deve coincidere esattamente con uno dei Redirect URL registrati su Enable Banking
-  return process.env.EB_REDIRECT_URL ?? new URL("/api/eb/callback", request.url).toString();
-}
+const redirectUrl = (request: NextRequest) => ebRedirectUrl(request.url);
 
 export async function POST(request: NextRequest) {
   const form = await request.formData();
