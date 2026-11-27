@@ -1,37 +1,17 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { AUTH_COOKIE, authRole } from "@/lib/auth";
-import { EbError, createPayment, listPisAspsps } from "@/lib/eb";
+import { createPayment, listPisAspsps } from "@/lib/eb";
+import { describePisError as describeError } from "@/lib/pis";
 import { psuHeadersFrom } from "@/lib/data";
 import { ebRedirectUrl, requestOrigin } from "@/lib/origin";
 import { PAY_STATE_COOKIE, bindState, getPayment, lockSend, removePayment, unlockSend, savePayment, type StoredPayment } from "@/lib/payment-store";
-import { parseTransfer, paymentBody } from "@/lib/payments";
+import { parseTransfer, paymentBody, pickPaymentType } from "@/lib/payments";
 import { listSessions } from "@/lib/store";
 
 function back(request: NextRequest, params: Record<string, string> = {}) {
   const url = new URL("/bonifici", request.url);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return NextResponse.redirect(url, 303);
-}
-
-/** Messaggio leggibile da un errore di Enable Banking (il corpo è JSON con message/detail/error). */
-function describeError(e: unknown): string {
-  if (e instanceof EbError) {
-    let detail = "";
-    try {
-      const j = JSON.parse(e.body) as { message?: string; detail?: unknown; error?: string };
-      detail = [j.error, j.message, typeof j.detail === "string" ? j.detail : j.detail ? JSON.stringify(j.detail) : ""]
-        .filter(Boolean)
-        .join(": ");
-    } catch {
-      detail = e.body;
-    }
-    if (e.status === 401 || e.status === 403) {
-      return `L'applicazione Enable Banking non può avviare bonifici (${e.status}${detail ? `: ${detail}` : ""}). Serve il servizio pagamenti (PIS) abilitato.`;
-    }
-    return `La banca ha rifiutato la richiesta (${e.status}${detail ? `: ${detail}` : ""})`;
-  }
-  if (e instanceof Error && e.name === "TimeoutError") return "Enable Banking non ha risposto in tempo, riprova";
-  return e instanceof Error ? e.message : String(e);
 }
 
 export async function POST(request: NextRequest) {
@@ -63,17 +43,18 @@ export async function POST(request: NextRequest) {
       const banks = await listPisAspsps(p.country);
       const bank = banks.find((b) => b.name === p.bank);
       if (!bank) return back(request, { bozza: id, error: `${p.bank} non permette bonifici via Enable Banking` });
-      const wanted = p.instant ? "INST_SEPA" : "SEPA";
-      if (bank.payments && !bank.payments.some((t) => t.payment_type === wanted)) {
+      const paymentType = pickPaymentType(bank.payments?.map((t) => t.payment_type), p.instant);
+      if (!paymentType) {
         return back(request, {
           bozza: id,
-          error: p.instant ? `${p.bank} non permette il bonifico istantaneo via API: togli “istantaneo”` : `${p.bank} non permette il bonifico SEPA via API`,
+          error: p.instant ? `${p.bank} non permette il bonifico istantaneo via API: togli “istantaneo”` : `${p.bank} non permette il bonifico ordinario via API`,
         });
       }
       const state = crypto.randomUUID();
       const created = await createPayment(
         paymentBody({
           draft: p,
+          paymentType,
           fromIban: p.fromIban,
           currency: p.currency,
           aspsp: { name: p.bank, country: p.country },

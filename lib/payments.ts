@@ -111,9 +111,42 @@ export function describeStatus(code: string | undefined, finalFromBank?: boolean
   return finalFromBank === undefined ? s : { ...s, final: finalFromBank };
 }
 
+/**
+ * Tipo di pagamento da chiedere alla banca, tra quelli che dichiara (`payments` di /aspsps).
+ * Istantaneo: solo INST_SEPA. Ordinario: SEPA, altrimenti il bonifico nazionale (DOMESTIC).
+ * Se la banca non elenca i tipi si prova lo standard; null = non supportato.
+ */
+export function pickPaymentType(types: string[] | undefined, instant: boolean): string | null {
+  if (!types) return instant ? "INST_SEPA" : "SEPA";
+  if (instant) return types.includes("INST_SEPA") ? "INST_SEPA" : null;
+  return types.includes("SEPA") ? "SEPA" : types.includes("DOMESTIC") ? "DOMESTIC" : null;
+}
+
+export type BankSupport =
+  | { kind: "unknown"; error: string } // l'elenco delle banche non si è potuto leggere
+  | { kind: "none" } // la banca non accetta bonifici via Enable Banking
+  | { kind: "ok"; ordinary: boolean; instant: boolean | null }; // instant null = la banca non dice quali tipi
+
+/** Cosa accetta una banca collegata, dall'elenco PIS del suo paese (il nome è lo stesso dell'API). */
+export function bankSupport(
+  bank: { name: string; country: string },
+  coverage: Record<string, { aspsps: { name: string; types?: string[] }[] } | { error: string }>,
+): BankSupport {
+  const c = coverage[bank.country];
+  if (!c) return { kind: "unknown", error: "elenco non letto" };
+  if ("error" in c) return { kind: "unknown", error: c.error };
+  const a = c.aspsps.find((x) => x.name === bank.name);
+  if (!a) return { kind: "none" };
+  if (!a.types) return { kind: "ok", ordinary: true, instant: null };
+  const ordinary = pickPaymentType(a.types, false) !== null;
+  const instant = pickPaymentType(a.types, true) !== null;
+  return ordinary || instant ? { kind: "ok", ordinary, instant } : { kind: "none" };
+}
+
 /** Corpo di POST /payments per un bonifico singolo. */
 export function paymentBody(p: {
   draft: TransferDraft;
+  paymentType: string;
   fromIban: string;
   currency: string;
   aspsp: { name: string; country: string };
@@ -121,7 +154,7 @@ export function paymentBody(p: {
   redirectUrl: string;
 }) {
   return {
-    payment_type: p.draft.instant ? "INST_SEPA" : "SEPA",
+    payment_type: p.paymentType,
     payment_request: {
       debtor_account: { identification: normalizeIban(p.fromIban), scheme_name: "IBAN" },
       debtor_currency: p.currency,
